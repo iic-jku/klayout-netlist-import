@@ -32,7 +32,7 @@ from klayout_plugin_utils.qt_helpers import (
 )
 
 from netlist_import_config import *
-from previous_ui_settings import PreviousUISettings
+from previous_netlist_import_ui_settings import PreviousUISettings
 
 #--------------------------------------------------------------------------------
 
@@ -157,40 +157,20 @@ class NetlistImportDialog(pya.QDialog):
             
         self.update_ui_from_config(config)
             
-    def _find_parent_layout(self, widget: pya.QWidget):
-        """Walk the parent widget's layout tree to find the layout directly containing widget."""
-        def search(layout):
-            for i in range(layout.count()):
-                item = layout.itemAt(i)
-                w = item.widget()
-                if w and w is widget:
-                    return layout, i
-                sub = item.layout()
-                if sub:
-                    result = search(sub)
-                    if result is not None:
-                        return result
-            return None
-        return search(widget.parent.layout)
-        
     def _replace_with_file_selector(self, 
                                     placeholder: pya.QWidget,
                                     **file_selector_kwargs) -> FileSelectorWidget:
         """Replace a placeholder widget with a FileSelectorWidget in-place."""
-        result = self._find_parent_layout(placeholder)
-        if result is None:
-            raise RuntimeError(f"Could not find layout containing {placeholder}")
-            
-        parent_layout, idx = result
         
         widget = FileSelectorWidget(placeholder.parent, **file_selector_kwargs)
         widget.setSizePolicy(placeholder.sizePolicy)
         widget.setMinimumSize(placeholder.minimumSize)
         widget.setMaximumSize(placeholder.maximumSize)
         
+        parent_layout = self.page.source_file_layout
         parent_layout.removeWidget(placeholder)
         placeholder.hide()
-        parent_layout.insertWidget(idx, widget)
+        parent_layout.insertWidget(1, widget)
         widget.show()
         
         return widget
@@ -227,6 +207,17 @@ class NetlistImportDialog(pya.QDialog):
             debug("NetlistImportDialog.on_cancel")
         self.reject()
     
+    def _parse_parameter_mapping(self, text: str) -> ParameterMapping:
+        entries = {}
+        for token in text.strip().split():
+            if '=' in token:
+                key, _, value = token.partition('=')
+                entries[key.strip()] = value.strip()
+        return ParameterMapping(entries=entries)
+    
+    def _format_parameter_mapping(self, pm: ParameterMapping) -> str:
+        return ' '.join(f'{k}={v}' for k, v in pm.entries.items())
+        
     def cell_map_from_ui(self, table_widget: QTableWidget):
         entries = []
         for row in range(table_widget.rowCount):
@@ -237,13 +228,13 @@ class NetlistImportDialog(pya.QDialog):
                 netlist_device    = cell(0),
                 target            = cell(1),
                 target_type       = CellType(cell(2)) if cell(2) else CellType.STATIC_CELL,
-                parameter_mapping = ParameterMapping(entries={}) # TODO: parse cell(3)
+                parameter_mapping = self._parse_parameter_mapping(cell(3))
             ))
         return CellMap(entries=entries)        
     
     def config_from_ui(self) -> NetlistImportConfig:
         return NetlistImportConfig(
-            source_path = Path(self.page.source_path_w.path),
+            source_path = Path(self.source_path_w.path),
             file_format = NetlistFileFormat(self.page.file_format_cob.currentData()),
             hierarchy_mode = HierarchyMode(self.page.hierarchy_mode_cob.currentData()),
             cell_map = self.cell_map_from_ui(self.page.cell_map_tw)
@@ -272,7 +263,7 @@ class NetlistImportDialog(pya.QDialog):
                 e.netlist_device,
                 e.target,
                 str(e.target_type),
-                str(e.parameter_mapping)
+                self._format_parameter_mapping(e.parameter_mapping)
             ]
             for col, text in enumerate(cells):
                 self.page.cell_map_tw.setItem(row, col, self._make_data_item(text))

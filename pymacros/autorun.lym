@@ -62,7 +62,7 @@ import klayout_plugin_utils.str_enum_compat
 import netlist_import_config
 import netlist_import_dialog
 import netlist_import_plugin
-import previous_ui_settings
+import previous_netlist_import_ui_settings
 
 reload(klayout_plugin_utils.debugging)
 reload(klayout_plugin_utils.editor_options)
@@ -73,7 +73,7 @@ reload(klayout_plugin_utils.str_enum_compat)
 reload(netlist_import_config)
 reload(netlist_import_dialog)
 reload(netlist_import_plugin)
-reload(previous_ui_settings)
+reload(previous_netlist_import_ui_settings)
 
 import klayout_plugin_utils.debugging
 klayout_plugin_utils.debugging.Debugging.init_debugging()

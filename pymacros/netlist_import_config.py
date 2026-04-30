@@ -122,25 +122,32 @@ class NetlistImportConfig:
             settings.hierarchy_mode = HierarchyMode(hierarchy_mode_str)
         
         cell_map_data = d.get('cell_map', None)
-        if cell_map_data is not None and isinstance(cell_map_data, dict):
-            entries = [
-                CellMapEntry(
-                    netlist_device = e['netlist_device'],
-                    target         = e['target'],
-                    target_type    = CellType(e['target_type']),
-                    parameter_mapping = ParameterMapping(entries=e.get('parameter_mapping', {}).get('entries', {}))
-                )
-                for e in cell_map_data.get('entries', [])
-            ]
-            settings.cell_map = CellMap(entries=entries)        
+        if cell_map_data is not None:
+            if isinstance(cell_map_data, str):
+                try:
+                    import ast
+                    cell_map_data = ast.literal_eval(cell_map_data)
+                except Exception:
+                    cell_map_data = None
+            if isinstance(cell_map_data, dict):
+                entries = [
+                    CellMapEntry(
+                        netlist_device = e['netlist_device'],
+                        target         = e['target'],
+                        target_type    = CellType(e['target_type']),
+                        parameter_mapping = ParameterMapping(entries=e.get('parameter_mapping', {}).get('entries', {}))
+                    )
+                    for e in cell_map_data.get('entries', [])
+                ]
+                settings.cell_map = CellMap(entries=entries)        
 
         return settings
     
     def dict(self) -> Dict:
-        return {
+        d = {
             'source_path': str(self.source_path),
             'file_format': self.file_format.value,
-            'hierarchy_mode': self.hierarchy_mode,
+            'hierarchy_mode': self.hierarchy_mode.value,
             'cell_map': {
                 'entries': [
                     {
@@ -153,4 +160,5 @@ class NetlistImportConfig:
                 ]
             }
         }
+        return d
     
