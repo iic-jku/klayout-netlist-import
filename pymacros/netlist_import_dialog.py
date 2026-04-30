@@ -22,6 +22,7 @@ from pathlib import Path
 import pya
 
 from klayout_plugin_utils.debugging import debug, Debugging
+from klayout_plugin_utils.file_selector_widget import FileSelectorWidget
 from klayout_plugin_utils.file_system_helpers import FileSystemHelpers
 from klayout_plugin_utils.lru_file_helper import LRUFileHelper
 from klayout_plugin_utils.qt_helpers import (
@@ -143,8 +144,56 @@ class NetlistImportDialog(pya.QDialog):
         self.page.hierarchy_mode_cob.clear()
         for h in HierarchyMode:
             self.page.hierarchy_mode_cob.addItem(h.ui_label, h.value)
+        
+        self.source_path_w = self._replace_with_file_selector(
+            self.page.source_path_le,
+            editable=True,
+            file_dialog_title='Select Netlist File',
+            file_types=[
+                'SPICE Netlist (*.cdl *.cir *.spi *.spice)',
+                'All Files (*)',
+            ]
+        )
             
         self.update_ui_from_config(config)
+            
+    def _find_parent_layout(self, widget: pya.QWidget):
+        """Walk the parent widget's layout tree to find the layout directly containing widget."""
+        def search(layout):
+            for i in range(layout.count()):
+                item = layout.itemAt(i)
+                w = item.widget()
+                if w and w is widget:
+                    return layout, i
+                sub = item.layout()
+                if sub:
+                    result = search(sub)
+                    if result is not None:
+                        return result
+            return None
+        return search(widget.parent.layout)
+        
+    def _replace_with_file_selector(self, 
+                                    placeholder: pya.QWidget,
+                                    **file_selector_kwargs) -> FileSelectorWidget:
+        """Replace a placeholder widget with a FileSelectorWidget in-place."""
+        result = self._find_parent_layout(placeholder)
+        if result is None:
+            raise RuntimeError(f"Could not find layout containing {placeholder}")
+            
+        parent_layout, idx = result
+        
+        widget = FileSelectorWidget(placeholder.parent, **file_selector_kwargs)
+        widget.setSizePolicy(placeholder.sizePolicy)
+        widget.setMinimumSize(placeholder.minimumSize)
+        widget.setMaximumSize(placeholder.maximumSize)
+        
+        parent_layout.removeWidget(placeholder)
+        placeholder.hide()
+        parent_layout.insertWidget(idx, widget)
+        widget.show()
+        
+        return widget
             
     def on_reset(self):
         if Debugging.DEBUG:
@@ -194,7 +243,7 @@ class NetlistImportDialog(pya.QDialog):
     
     def config_from_ui(self) -> NetlistImportConfig:
         return NetlistImportConfig(
-            source_path = Path(self.page.source_path_le.text),
+            source_path = Path(self.page.source_path_w.path),
             file_format = NetlistFileFormat(self.page.file_format_cob.currentData()),
             hierarchy_mode = HierarchyMode(self.page.hierarchy_mode_cob.currentData()),
             cell_map = self.cell_map_from_ui(self.page.cell_map_tw)
@@ -204,11 +253,8 @@ class NetlistImportDialog(pya.QDialog):
         if Debugging.DEBUG:
             debug("NetlistImportDialog.update_ui_from_config")
         
-        if config.source_path is None:
-            self.page.source_path_le.setText('')
-        else:
-            self.page.source_path_le.setText(str(config.source_path))
-
+        self.source_path_w.path = str(config.source_path) if config.source_path else ''
+        
         idx = self.page.file_format_cob.findData(config.file_format.value)
         if idx >= 0:
             self.page.file_format_cob.setCurrentIndex(idx)

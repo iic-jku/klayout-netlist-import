@@ -56,6 +56,7 @@ from importlib import reload
 import klayout_plugin_utils.debugging
 import klayout_plugin_utils.editor_options
 import klayout_plugin_utils.event_loop
+import klayout_plugin_utils.file_selector_widget
 import klayout_plugin_utils.object_description
 import klayout_plugin_utils.str_enum_compat
 import netlist_import_config
@@ -66,6 +67,7 @@ import previous_ui_settings
 reload(klayout_plugin_utils.debugging)
 reload(klayout_plugin_utils.editor_options)
 reload(klayout_plugin_utils.event_loop)
+reload(klayout_plugin_utils.file_selector_widget)
 reload(klayout_plugin_utils.object_description)
 reload(klayout_plugin_utils.str_enum_compat)
 reload(netlist_import_config)
