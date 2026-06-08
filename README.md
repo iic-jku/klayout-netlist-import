@@ -23,3 +23,7 @@ Activate or deactivate the *Auto Backup* plugin by selecting *File*â†’*Import*â†
 2. Locate the `Netlist Import`, double-click it to select for installation, then click *Apply*
 3. Review and close the package installation report
 4. Confirm macro execution
+
+## Acknoledgements
+
+Using `netlist_parser.py` by Rohan Chadhury (https://github.com/rohaansch/netlist-parser), licensed under MIT license.
