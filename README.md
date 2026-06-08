@@ -10,9 +10,11 @@ This add-on can be installed through [KLayout](https://klayout.de) package manag
 
 ## Usage
 
-### Tool activation and deactivation
+### Import a netlist
 
-Activate or deactivate the *Auto Backup* plugin by selecting *File*→*Import*→*Netlist* in the main menu
+1. Create new layout
+2. Middle click your TOP Cell
+3. Open importer by clicking *File*→*Import*→*Netlist* in the main menu
 
 
 ## Installation using KLayout Package Manager
