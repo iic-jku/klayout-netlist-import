@@ -1,0 +1,382 @@
+{
+    "tech_name": "sg13g2",
+    "cell_map": {
+        "entries": [
+            {
+                "netlist_device": "bondpad",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "bondpad",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "size": "@size",
+                        "shape": "@shape",
+                        "padtype": "@padtype"
+                    }
+                }
+            },
+            {
+                "netlist_device": "cap_cmim",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "cmim",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "cap_rfcmim",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "rfcmim",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l",
+                        "wfeed": "@wfeed",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "dantenna",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "dantenna",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l"
+                    }
+                }
+            },
+            {
+                "netlist_device": "diodevdd_2kv",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "esd",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "model": "diodevdd_2kv",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "diodevss_2kv",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "esd",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "model": "diodevss_2kv",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "diodevdd_4kv",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "esd",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "model": "diodevdd_4kv",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "diodevss_4kv",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "esd",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "model": "diodevss_4kv",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "dpantenna",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "dpantenna",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l"
+                    }
+                }
+            },
+            {
+                "netlist_device": "inductor",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "inductor2",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "s": "@s",
+                        "d": "@d",
+                        "nr_r": "@nr_r",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "inductor3",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "inductor3",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "s": "@s",
+                        "d": "@d",
+                        "nr_r": "@nr_r",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "isolbox",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "isolbox",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l"
+                    }
+                }
+            },
+            {
+                "netlist_device": "nmoscl_2",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "esd",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "model": "nmoscl_2",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "nmoscl_4",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "esd",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "model": "nmoscl_4",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "npn13G2",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "npn13G2",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "le": "@le",
+                        "we": "@we",
+                        "Nx": "@Nx"
+                    }
+                }
+            },
+            {
+                "netlist_device": "npn13G2l",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "npn13G2L",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "le": "@le",
+                        "we": "@we",
+                        "Nx": "@Nx"
+                    }
+                }
+            },
+            {
+                "netlist_device": "npn13G2v",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "npn13G2V",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "le": "@le",
+                        "we": "@we",
+                        "Nx": "@Nx"
+                    }
+                }
+            },
+            {
+                "netlist_device": "ntap1",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "ntap1",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "A": "@A",
+                        "P": "@P"
+                    }
+                }
+            },
+            {
+                "netlist_device": "pnpMPA",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "pnpMPA",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "a": "@a",
+                        "p": "@p",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "ptap1",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "ptap1",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "A": "@A",
+                        "P": "@P"
+                    }
+                }
+            },
+            {
+                "netlist_device": "rhigh",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "rhigh",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l",
+                        "b": "@b",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "rppd",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "rppd",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l",
+                        "b": "@b",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "rsil",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "rsil",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "schottky_nbl1",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "schottky",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "sg13_hv_nmos",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "nmosHV",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l",
+                        "ng": "@ng",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "sg13_hv_pmos",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "pmosHV",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l",
+                        "ng": "@ng",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "sg13_lv_nmos",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "nmos",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l",
+                        "ng": "@ng",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "sg13_lv_pmos",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "pmos",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l",
+                        "ng": "@ng",
+                        "m": "@m"
+                    }
+                }
+            },
+            {
+                "netlist_device": "sg13_hv_svaricap",
+                "layout_cell_library": "SG13_dev",
+                "layout_cell": "SVaricap",
+                "layout_cell_type": "pcell",
+                "parameter_mapping": {
+                    "entries": {
+                        "w": "@w",
+                        "l": "@l",
+                        "Nx": "@Nx"
+                    }
+                }
+            }
+        ]
+    }
+}
