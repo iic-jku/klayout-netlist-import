@@ -23,6 +23,7 @@ import traceback
 import pya
 
 from klayout_plugin_utils.debugging import debug, Debugging
+from klayout_plugin_utils.event_loop import EventLoop
 from klayout_plugin_utils.file_selector_widget import FileSelectorWidget
 from klayout_plugin_utils.file_system_helpers import FileSystemHelpers
 from klayout_plugin_utils.lru_file_helper import LRUFileHelper
@@ -473,6 +474,8 @@ class NetlistImportDialog(pya.QDialog):
             self._add_cell_item(
                 tree.invisibleRootItem(), cell,
                 import_mode=cis.import_mode.value if cis else None,
+                static_library=cis.static_library if cis else '',
+                static_cell=cis.static_cell if cis else '',
                 instance_settings=cis.instance_settings if cis else None,
             )
      
@@ -495,6 +498,8 @@ class NetlistImportDialog(pya.QDialog):
         parent: pya.QTreeWidgetItem,
         cell: NetlistCell,
         import_mode: str = None,
+        static_library: str = '',
+        static_cell: str = '',
         instance_settings: List[InstanceImportSetting] = None,
     ) -> pya.QTreeWidgetItem:
         """Create one child row for *cell* under *parent* and return it.
@@ -528,11 +533,23 @@ class NetlistImportDialog(pya.QDialog):
             item.setText(3, params_str)
         
         # Col 4 – Import Settings combo box
-        cb = self._make_cell_import_setting_combo(
-            import_mode or ImportMode.NEW_CELL.value
-        )
+        effective_mode = import_mode or ImportMode.NEW_CELL.value
+        cb = self._make_cell_import_setting_combo(effective_mode)
         self._import_setting_combos[id(item)] = cb  # prevent GC
         tree.setItemWidget(item, 4, cb)
+        
+        # Store static cell lib/cell in item data roles
+        item.setData(0, _STATIC_LIBRARY_ROLE, static_library or '')
+        item.setData(0, _STATIC_CELL_ROLE,    static_cell    or '')
+        
+        # Col 5 – Import Settings widget (mode-dependent, same as instances)
+        self._refresh_cell_import_settings_widget(tree, item, effective_mode)
+        
+        # Rebuild col-5 widget whenever the mode combo changes
+        cb.currentIndexChanged.connect(
+            lambda _idx, t=tree, it=item:
+                self._on_cell_mode_changed(t, it)
+        )
         
         # Build instance lookup
         inst_map = {}
@@ -557,6 +574,28 @@ class NetlistImportDialog(pya.QDialog):
             )
      
         return item
+    
+    def _on_cell_mode_changed(self, tree, item):
+        """Slot: rebuild the Import Settings widget when the cell mode combo changes."""
+        cb = tree.itemWidget(item, 4)
+        if cb is None:
+            return
+        mode = cb.itemData(cb.currentIndex)
+        
+        def _refresh():
+            self._refresh_cell_import_settings_widget(tree, item, mode)
+        
+        EventLoop.defer(_refresh)
+    
+    def _refresh_cell_import_settings_widget(self, tree, item, mode):
+        """Build and install the correct Import Settings widget in col 5 for a cell item."""
+        if mode == ImportMode.EXTERNAL_STATIC_CELL.value:
+            w = self._make_static_cell_widget(item)
+        else:
+            w = pya.QWidget()
+        old_item_widget = tree.itemWidget(item, 5)
+        self._import_settings_widgets[id(item)] = w
+        tree.setItemWidget(item, 5, w)
     
     def _add_instance_item(
         self,
@@ -627,7 +666,11 @@ class NetlistImportDialog(pya.QDialog):
         if cb is None:
             return
         mode = cb.itemData(cb.currentIndex)
-        self._refresh_import_settings_widget(tree, item, device_name, mode, cell_map)
+        
+        def _refresh():
+            self._refresh_import_settings_widget(tree, item, device_name, mode, cell_map)
+        
+        EventLoop.defer(_refresh)
  
     def _refresh_import_settings_widget(self, tree, item, device_name, mode, cell_map):
         """Build and install the correct Import Settings widget in col 5."""
@@ -640,13 +683,7 @@ class NetlistImportDialog(pya.QDialog):
             w = pya.QWidget()
         # Always store a reference (even None → use empty widget) to prevent GC
         self._import_settings_widgets[id(item)] = w
-        if w is not None:
-            tree.setItemWidget(item, 5, w)
-        else:
-            # Install an empty transparent widget so the column stays blank
-            empty = pya.QWidget()
-            self._import_settings_widgets[id(item)] = empty
-            tree.setItemWidget(item, 5, empty)
+        tree.setItemWidget(item, 5, w)
  
     def _make_import_settings_widget(self, item, device_name, mode, cell_map):
         """Return the appropriate widget for col 5 depending on *mode*.
@@ -805,16 +842,7 @@ class NetlistImportDialog(pya.QDialog):
         lib_cb  = pya.QComboBox()
         lib_cb.setEditable(True)
         lib_cb.setMinimumWidth(100)
-        lib_cb.addItem("")  # allow empty / manual entry
-        for name in self._get_library_names():
-            lib_cb.addItem(name)
-        # Restore saved value
-        idx = lib_cb.findText(saved_lib)
-        if idx >= 0:
-            lib_cb.setCurrentIndex(idx)
-        else:
-            lib_cb.setEditText(saved_lib)
-    
+        
         lbl_cell = pya.QLabel("Cell:")
         cell_cb  = pya.QComboBox()
         cell_cb.setEditable(True)
@@ -837,14 +865,16 @@ class NetlistImportDialog(pya.QDialog):
             cell_cb.blockSignals(False)
 
         lib_cb.blockSignals(True)
-        lib_cb.addItem("")
+        lib_cb.addItem("")  # allow empty / manual entry
         for name in self._get_library_names():
             lib_cb.addItem(name)
+        # Restore saved value
         idx = lib_cb.findText(saved_lib)
         if idx >= 0:
             lib_cb.setCurrentIndex(idx)
         else:
             lib_cb.setEditText(saved_lib)
+        lib_cb.addItem("")
         lib_cb.blockSignals(False)
         
         # Initial population of cell combo
@@ -885,6 +915,10 @@ class NetlistImportDialog(pya.QDialog):
         
         container.setMinimumWidth(200)
         
+        # Keep Python references to child widgets alive to prevent pya GC crash
+        key = id(item)
+        self._import_settings_widgets[('children', key)] = [lbl_lib, lib_cb, lbl_cell, cell_cb, layout]
+        
         return container
  
     def _set_instance_mode(self, item, mode_value: str):
@@ -895,10 +929,13 @@ class NetlistImportDialog(pya.QDialog):
         cb = tree.itemWidget(item, 4)
         if cb is None:
             return
-        for i in range(cb.count):
-            if cb.itemData(i) == mode_value:
-                cb.setCurrentIndex(i)
-                break
+            
+        def _apply():
+            for i in range(cb.count):
+                if cb.itemData(i) == mode_value:
+                    cb.setCurrentIndex(i)
+                    break
+        EventLoop.defer(_apply)
  
     def _on_goto_tech_cell_mapping(self, device_name: str):
         """Navigate to Tech Cell Mapping page and select the row for *device_name*."""
@@ -1054,6 +1091,8 @@ class NetlistImportDialog(pya.QDialog):
             result.append(CellImportSetting(
                 cell_name=cell_name,
                 import_mode=ImportMode(cell_mode),
+                static_library=cell_item.data(0, _STATIC_LIBRARY_ROLE) or '',
+                static_cell=cell_item.data(0, _STATIC_CELL_ROLE) or '',
                 instance_settings=inst_settings,
             ))    
         return result

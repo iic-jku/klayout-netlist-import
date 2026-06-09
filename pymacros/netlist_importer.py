@@ -21,6 +21,8 @@ import pya
 from pathlib import Path
 from typing import *
 
+from klayout_plugin_utils.debugging import debug, Debugging
+
 from netlist_import_config import *
 from netlist_parser import NetlistParser, NetlistError, NetlistCell, DeviceInstance
 
@@ -70,16 +72,6 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             return True
         return sis.import_mode != ImportMode.IGNORE
 
-    def _get_instance_import_mode(self, cell: NetlistCell, inst: DeviceInstance) -> ImportMode:
-        """Return the ImportMode for an instance."""
-        cis = self.config.cell_import_setting_for(cell.name)
-        if cis is None:
-            return ImportMode.TECH_CELL_MAPPING
-        sis = cis.instance_setting_for(inst.name)
-        if sis is None:
-            return ImportMode.TECH_CELL_MAPPING
-        return sis.import_mode
-
     def _place_instance_via_tech_mapping(self,
                                          inst: DeviceInstance,
                                          lay_cell: pya.Cell,
@@ -102,22 +94,29 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
     def _place_instance_via_external_static(self,
                                             inst: DeviceInstance,
                                             lay_cell: pya.Cell,
-                                            position: pya.DVector) -> Optional[Tuple[pya.Cell, pya.DCellInstArray]]:
+                                            position: pya.DVector,
+                                            static_library: str,
+                                            static_cell: str) -> Optional[Tuple[pya.Cell, pya.DCellInstArray]]:
         """Place an instance as an external static cell reference.
         
         Uses the device_name directly as the cell name (no library, no params).
         """
-        device = inst.device_name
-        if not device:
-            print(f"  Warning: instance '{inst.name}' has no device name, skipping.")
+        cell_name = static_cell or inst.device_name
+        if not cell_name:
+            print(f"  Warning: instance '{inst.name}' has no cell name, skipping.")
             return None
-
-        # Find or create the cell by name (no library)
-        cell = self.layout.cell(device)
-        if cell is None:
-            cell = self.layout.create_cell(device)
-            print(f"  Created empty static cell '{device}' for instance '{inst.name}'")
-
+    
+        if static_library:
+            cell = self.layout.create_cell(cell_name, static_library)
+            if cell is None:
+                print(f"  Warning: could not create '{cell_name}' from library "
+                      f"'{static_library}', creating empty cell.")
+                cell = self.layout.create_cell(cell_name)
+        else:
+            cell = self.layout.cell(cell_name)
+            if cell is None:
+                cell = self.layout.create_cell(cell_name)
+    
         cell_inst = pya.DCellInstArray(cell, pya.DTrans(position))
         lay_cell.insert(cell_inst)
         return cell, cell_inst
@@ -130,11 +129,43 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         
         for cell in netlist.cells:
             if not self._should_import_cell(cell):
-                print(f"Skipping cell '{cell.name}' (ImportMode: Ignore)")
+                if Debugging.DEBUG:
+                    debug(f"NetlistImporter.import_netlist_into_layout: "
+                          f"Skipping cell '{cell.name}' (ImportMode: Ignore)")
                 continue
 
-            cell_setting = self._get_cell_import_mode(cell)
-            print(f"Importing cell '{cell.name}' (ImportMode: {cell_setting.ui_label})")
+            cell_mode = self._get_cell_import_mode(cell)
+            if Debugging.DEBUG:
+                debug(f"NetlistImporter.import_netlist_into_layout: "
+                      f"Importing cell '{cell.name}' (ImportMode: {cell_mode.ui_label})")
+            
+            if cell_mode == ImportMode.EXTERNAL_STATIC_CELL:
+                # Replace the whole cell with a static library/cell reference
+                cis = self.config.cell_import_setting_for(cell.name)
+                lib_name = cis.static_library if cis else ''
+                cell_name = cis.static_cell if cis else ''
+                if not cell_name:
+                    cell_name = cell.name
+                
+                if lib_name:
+                    lay_cell = self.layout.create_cell(cell_name, lib_name)
+                    if lay_cell is None:
+                        if Debugging.DEBUG:
+                            debug(f"  NetlistImporter.import_netlist_into_layout: "
+                                  f"Warning: could not create cell '{cell_name}' "
+                                  f"from library '{lib_name}', creating empty cell.")
+                        lay_cell = self.layout.create_cell(cell.name)
+                else:
+                    lay_cell = self.layout.cell(cell_name)
+                    if lay_cell is None:
+                        lay_cell = self.layout.create_cell(cell_name)
+                
+                if Debugging.DEBUG:
+                    debug(f"  NetlistImporter.import_netlist_into_layout: "
+                          f"  Cell '{cell.name}' replaced by static cell "
+                          f"'{lib_name}/{cell_name}'")
+                pya.CellView.active().cell = lay_cell
+                continue
             
             lay_cell = self.layout.create_cell(cell.name)
             
@@ -150,24 +181,37 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             
             for inst in cell.instances:
                 if not self._should_import_instance(cell, inst):
-                    print(f"  Skipping instance '{inst.name}' in cell '{cell.name}' (Ignore)")
+                    if Debugging.DEBUG:
+                        debug(f"  NetlistImporter.import_netlist_into_layout: "
+                              f"Skipping instance '{inst.name}' in cell '{cell.name}' (Ignore)")
                     continue
             
-                inst_setting = self._get_instance_import_mode(cell, inst)
+                inst_mode = ImportMode.TECH_CELL_MAPPING
+                
+                cis = self.config.cell_import_setting_for(cell.name)
+                static_library = ''
+                static_cell = ''
+                if cis is not None:
+                    sis = cis.instance_setting_for(inst.name)
+                    if sis is not None:
+                        inst_mode = sis.import_mode
+                        static_library = sis.static_library
+                        static_cell = sis.static_cell
+            
                 position = pya.DVector(x, y)
                 placed_inst = None
             
-                if inst_setting == ImportMode.TECH_CELL_MAPPING:
+                if inst_mode == ImportMode.TECH_CELL_MAPPING:
                     result = self._place_instance_via_tech_mapping(
                         inst, lay_cell, position)
 
-                elif inst_setting == ImportMode.EXTERNAL_STATIC_CELL:
+                elif inst_mode == ImportMode.EXTERNAL_STATIC_CELL:
                     result = self._place_instance_via_external_static(
-                        inst, lay_cell, position)
+                        inst, lay_cell, position, static_library, static_cell)
 
                 else:
                     print(f"  Warning: unhandled instance ImportMode "
-                          f"'{inst_setting.value}' for '{inst.name}', skipping.")
+                          f"'{inst_mode.value}' for '{inst.name}', skipping.")
                     continue
                 
                 if result is None:
