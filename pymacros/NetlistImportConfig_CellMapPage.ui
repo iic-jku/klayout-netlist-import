@@ -76,17 +76,17 @@
           </column>
           <column>
            <property name="text">
+            <string>Target Cell Type</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
             <string>Target Library</string>
            </property>
           </column>
           <column>
            <property name="text">
             <string>Target Cell</string>
-           </property>
-          </column>
-          <column>
-           <property name="text">
-            <string>Target Cell Type</string>
            </property>
           </column>
           <column>

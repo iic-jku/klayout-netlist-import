@@ -287,9 +287,9 @@ class NetlistImportDialog(pya.QDialog):
         header = tree.horizontalHeader
         header.setSectionResizeMode(0, pya.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, pya.QHeaderView.Fixed)
+        tree.setColumnWidth(1, 100)
         header.setSectionResizeMode(2, pya.QHeaderView.Fixed)
         header.setSectionResizeMode(3, pya.QHeaderView.Fixed)
-        tree.setColumnWidth(3, 100)
         header.setStretchLastSection(True)      
         
         tree.setSelectionBehavior(pya.QAbstractItemView.SelectRows)
@@ -312,10 +312,10 @@ class NetlistImportDialog(pya.QDialog):
         self._cell_type_combos = {}
     
     def _set_cell_type_widget(self, row: int, value: str):
-        """Place a QComboBox in column 3 of the given row."""
+        """Place a QComboBox in column 1 of the given row."""
         cb = self._make_cell_type_combo(value)
         self._cell_type_combos[row] = cb  # prevent GC
-        self.page_cell_map.cell_map_tw.setCellWidget(row, 3, cb)
+        self.page_cell_map.cell_map_tw.setCellWidget(row, 1, cb)
         cb.currentIndexChanged.connect(lambda _idx, r=row: self._on_cell_type_changed(r))
         self._update_param_cell_state(row, value)
     
@@ -354,12 +354,12 @@ class NetlistImportDialog(pya.QDialog):
             item.setToolTip('')
     
     def _get_cell_type_value(self, row: int) -> str:
-        """Read the current CellType value from the combo in column 3."""
-        cb = self.page_cell_map.cell_map_tw.cellWidget(row, 3)
+        """Read the current CellType value from the combo in column 1."""
+        cb = self.page_cell_map.cell_map_tw.cellWidget(row, 1)
         if cb is not None:
             return cb.itemData(cb.currentIndex)
         # Fallback to item text
-        item = self.page_cell_map.cell_map_tw.item(row, 3)
+        item = self.page_cell_map.cell_map_tw.item(row, 1)
         return item.text if item else CellType.STATIC_CELL.value
         
     def _on_cell_map_double_clicked(self, row: int, col: int):
@@ -915,9 +915,9 @@ class NetlistImportDialog(pya.QDialog):
         row = table.rowCount
         table.blockSignals(True)
         table.insertRow(row)
-        hints = [device_name, 'SG13_dev', device_name.lower(), None, 'w=@w l=@l ng=@ng m=@m']
+        hints = [device_name, None, 'SG13_dev', device_name.lower(), 'w=@w l=@l ng=@ng m=@m']
         for col, hint in enumerate(hints):
-            if col == 3:
+            if col == 1:
                 self._set_cell_type_widget(row, CellType.PCELL.value)
             else:
                 table.setItem(row, col, self._make_data_item(hint or ''))
@@ -1060,9 +1060,9 @@ class NetlistImportDialog(pya.QDialog):
                 return item.text if item is not None else ''
             entries.append(CellMapEntry(
                 netlist_device      = cell(0),
-                layout_cell_library = cell(1),
-                layout_cell         = cell(2),
                 layout_cell_type    = CellType(self._get_cell_type_value(row)),
+                layout_cell_library = cell(2),
+                layout_cell         = cell(3),
                 parameter_mapping   = self._parse_parameter_mapping(cell(4))
             ))
         return CellMap(entries=entries)        
@@ -1111,13 +1111,13 @@ class NetlistImportDialog(pya.QDialog):
             self.page_cell_map.cell_map_tw.insertRow(row)
             cells = [
                 e.netlist_device,
+                None,   # CellType handled separately
                 e.layout_cell_library,
                 e.layout_cell,
-                None,   # CellType handled separately
                 self._format_parameter_mapping(e.parameter_mapping)
             ]
             for col, value in enumerate(cells):
-                if col == 3:  # cell type combo box
+                if col == 1:  # cell type combo box
                     self._set_cell_type_widget(row, e.layout_cell_type.value)
                 else:
                     self.page_cell_map.cell_map_tw.setItem(row, col, self._make_data_item(value))
@@ -1278,9 +1278,9 @@ class NetlistImportDialog(pya.QDialog):
             row = table.rowCount
             table.blockSignals(True)
             table.insertRow(row)
-            hints = ['SG13_LV_NMOS', 'SG13_dev', 'nmos', None, 'w=@w l=@l ng=@ng m=@m']
+            hints = ['SG13_LV_NMOS', None, 'SG13_dev', 'nmos', 'w=@w l=@l ng=@ng m=@m']
             for col, hint in enumerate(hints):
-                if col == 3:
+                if col == 1:
                     self._set_cell_type_widget(row, CellType.PCELL.value)
                 else:
                     table.setItem(row, col, self._make_placeholder_item(hint))
@@ -1310,7 +1310,7 @@ class NetlistImportDialog(pya.QDialog):
         """Rebuild the row→combo dict after rows are deleted."""
         new = {}
         for row in range(self.page_cell_map.cell_map_tw.rowCount):
-            cb = self.page_cell_map.cell_map_tw.cellWidget(row, 3)
+            cb = self.page_cell_map.cell_map_tw.cellWidget(row, 1)
             if cb is not None:
                 new[row] = cb
         self._cell_type_combos = new
