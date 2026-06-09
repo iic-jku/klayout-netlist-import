@@ -631,7 +631,13 @@ class NetlistImportDialog(pya.QDialog):
  
     def _refresh_import_settings_widget(self, tree, item, device_name, mode, cell_map):
         """Build and install the correct Import Settings widget in col 5."""
+        
+        old_widget = self._import_settings_widgets.get(id(item))
+        
         w = self._make_import_settings_widget(item, device_name, mode, cell_map)
+        if w is None:
+            # Install an empty transparent widget so the column stays blank
+            w = pya.QWidget()
         # Always store a reference (even None → use empty widget) to prevent GC
         self._import_settings_widgets[id(item)] = w
         if w is not None:
