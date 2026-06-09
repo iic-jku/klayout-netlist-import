@@ -733,6 +733,63 @@ class NetlistImportDialog(pya.QDialog):
  
         return container
  
+    def _get_library_names(self) -> List[str]:
+        """Return sorted list of all registered KLayout library names."""
+        try:
+            names = sorted([
+                l.name()
+                for l in [
+                    pya.Library.library_by_id(i) 
+                    for i in pya.Library.library_ids()
+                ]
+                if self.tech.name in l.technologies() \
+                   or not l.technologies()
+            ])
+            
+            if Debugging.DEBUG:
+                debug(f"NetlistImportPluginFactory._get_library_names: {names}")
+            return names
+        except Exception as e:
+            if Debugging.DEBUG:
+                debug(f"NetlistImportPluginFactory._get_library_names FAILED: {e}")
+            traceback.print_exc()
+            return []
+    
+    def _get_library_cell_names(self, lib_name: str) -> List[str]:
+        """Return sorted list of cell names in the given library."""
+        try:
+            lib = pya.Library.library_by_name(lib_name, self.tech.name)
+            if lib is None:
+                if Debugging.DEBUG:
+                    debug(f"NetlistImportPluginFactory._get_library_cell_names: no lib '{lib_name}'")
+                return []
+            ly = lib.layout()
+            names = sorted([c.name for c in ly.each_cell()])
+            if Debugging.DEBUG:
+                debug(f"NetlistImportPluginFactory._get_library_cell_names({lib_name}): {names[:10]}...")
+            if not names:
+                pass
+            return names
+        except Exception as e:
+            print(f"DEBUG _get_library_cell_names FAILED: {e}")
+            traceback.print_exc()
+            return []
+            
+    def _validate_static_cell_combo(self, lib_cb: pya.QComboBox, cell_cb: pya.QComboBox):
+        """Set red background on library/cell combos if their value is invalid."""
+        lib_name = lib_cb.currentText.strip()
+        cell_name = cell_cb.currentText.strip()
+    
+        lib_valid = bool(lib_name) and lib_name in self._get_library_names()
+        cell_valid = False
+        if lib_valid and cell_name:
+            cell_valid = cell_name in self._get_library_cell_names(lib_name)
+    
+        red = "QComboBox { background-color: #ffcccc; }"
+        ok  = ""
+        lib_cb.setStyleSheet(red if not lib_valid else ok)
+        cell_cb.setStyleSheet(red if not cell_valid else ok)
+
     def _make_static_cell_widget(self, item):
         """Widget for EXTERNAL_STATIC_CELL mode in col 5: Library + Cell line edits."""
         # Restore previously stored values (survive mode switches)
@@ -745,31 +802,74 @@ class NetlistImportDialog(pya.QDialog):
         layout.setSpacing(4)
  
         lbl_lib = pya.QLabel("Library:")
-        lib_le  = pya.QLineEdit()
-        lib_le.setPlaceholderText("e.g. SG13_dev")
-        lib_le.setText(saved_lib)
-        lib_le.setMinimumWidth(80)
- 
+        lib_cb  = pya.QComboBox()
+        lib_cb.setEditable(True)
+        lib_cb.setMinimumWidth(100)
+        lib_cb.addItem("")  # allow empty / manual entry
+        for name in self._get_library_names():
+            lib_cb.addItem(name)
+        # Restore saved value
+        idx = lib_cb.findText(saved_lib)
+        if idx >= 0:
+            lib_cb.setCurrentIndex(idx)
+        else:
+            lib_cb.setEditText(saved_lib)
+    
         lbl_cell = pya.QLabel("Cell:")
-        cell_le  = pya.QLineEdit()
-        cell_le.setPlaceholderText("e.g. nmos")
-        cell_le.setText(saved_cell)
-        cell_le.setMinimumWidth(80)
- 
+        cell_cb  = pya.QComboBox()
+        cell_cb.setEditable(True)
+        cell_cb.setMinimumWidth(100)
+        
+        def _populate_cell_combo(lib_name: str):
+            """Repopulate cell combo when library selection changes."""
+            prev_cell = cell_cb.currentText
+            cell_cb.clear()
+            cell_cb.addItem("")
+            for cname in self._get_library_cell_names(lib_name):
+                cell_cb.addItem(cname)
+            # Try to restore previous cell selection
+            idx = cell_cb.findText(prev_cell)
+            if idx >= 0:
+                cell_cb.setCurrentIndex(idx)
+            else:
+                cell_cb.setEditText(prev_cell)
+    
+        # Initial population of cell combo
+        _populate_cell_combo(saved_lib)
+        # Restore saved cell
+        idx = cell_cb.findText(saved_cell)
+        if idx >= 0:
+            cell_cb.setCurrentIndex(idx)
+        else:
+            cell_cb.setEditText(saved_cell)
+    
         layout.addWidget(lbl_lib)
-        layout.addWidget(lib_le)
+        layout.addWidget(lib_cb, 1)
         layout.addWidget(lbl_cell)
-        layout.addWidget(cell_le)
-        layout.addStretch(1)
- 
-        # Persist changes back into the item's data roles
-        lib_le.textChanged.connect(
-            lambda text, it=item: it.setData(0, _STATIC_LIBRARY_ROLE, text)
+        layout.addWidget(cell_cb, 1)
+                
+        # When library changes, repopulate cells and persist
+        def _on_lib_changed(text, it=item):
+            it.setData(0, _STATIC_LIBRARY_ROLE, text)
+            _populate_cell_combo(text)
+            self._validate_static_cell_combo(lib_cb, cell_cb)
+        
+        lib_cb.currentTextChanged.connect(_on_lib_changed)
+        lib_cb.currentIndexChanged.connect(
+            lambda _idx: _on_lib_changed(lib_cb.currentText)
         )
-        cell_le.textChanged.connect(
-            lambda text, it=item: it.setData(0, _STATIC_CELL_ROLE, text)
-        )
- 
+        
+        def _on_cell_changed(text, it=item):
+            it.setData(0, _STATIC_CELL_ROLE, text)
+            self._validate_static_cell_combo(lib_cb, cell_cb)
+        
+        cell_cb.currentTextChanged.connect(_on_cell_changed)        
+        
+        # Initial validation
+        self._validate_static_cell_combo(lib_cb, cell_cb)
+        
+        container.setMinimumWidth(200)
+        
         return container
  
     def _set_instance_mode(self, item, mode_value: str):
