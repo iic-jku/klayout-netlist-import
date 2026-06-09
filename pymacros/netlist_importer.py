@@ -47,38 +47,38 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         return cell, inst
     
     def _should_import_cell(self, cell: NetlistCell) -> bool:
-        """Check whether a cell should be imported based on its ImportSetting."""
+        """Check whether a cell should be imported based on its ImportMode."""
         cis = self.config.cell_import_setting_for(cell.name)
         if cis is None:
             return True  # no setting → import by default
-        return cis.import_setting != ImportSetting.IGNORE
+        return cis.import_mode != ImportMode.IGNORE
 
-    def _get_cell_import_setting(self, cell: NetlistCell) -> ImportSetting:
-        """Return the ImportSetting for a cell."""
+    def _get_cell_import_mode(self, cell: NetlistCell) -> ImportMode:
+        """Return the ImportMode for a cell."""
         cis = self.config.cell_import_setting_for(cell.name)
         if cis is None:
-            return ImportSetting.NEW_CELL
-        return cis.import_setting
+            return ImportMode.NEW_CELL
+        return cis.import_mode
 
     def _should_import_instance(self, cell: NetlistCell, inst: DeviceInstance) -> bool:
-        """Check whether an instance should be imported based on its ImportSetting."""
+        """Check whether an instance should be imported based on its ImportMode."""
         cis = self.config.cell_import_setting_for(cell.name)
         if cis is None:
             return True
         sis = cis.instance_setting_for(inst.name)
         if sis is None:
             return True
-        return sis.import_setting != ImportSetting.IGNORE
+        return sis.import_mode != ImportMode.IGNORE
 
-    def _get_instance_import_setting(self, cell: NetlistCell, inst: DeviceInstance) -> ImportSetting:
-        """Return the ImportSetting for an instance."""
+    def _get_instance_import_mode(self, cell: NetlistCell, inst: DeviceInstance) -> ImportMode:
+        """Return the ImportMode for an instance."""
         cis = self.config.cell_import_setting_for(cell.name)
         if cis is None:
-            return ImportSetting.TECH_CELL_MAPPING
+            return ImportMode.TECH_CELL_MAPPING
         sis = cis.instance_setting_for(inst.name)
         if sis is None:
-            return ImportSetting.TECH_CELL_MAPPING
-        return sis.import_setting
+            return ImportMode.TECH_CELL_MAPPING
+        return sis.import_mode
 
     def _place_instance_via_tech_mapping(self,
                                          inst: DeviceInstance,
@@ -130,11 +130,11 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         
         for cell in netlist.cells:
             if not self._should_import_cell(cell):
-                print(f"Skipping cell '{cell.name}' (ImportSetting: Ignore)")
+                print(f"Skipping cell '{cell.name}' (ImportMode: Ignore)")
                 continue
 
-            cell_setting = self._get_cell_import_setting(cell)
-            print(f"Importing cell '{cell.name}' (ImportSetting: {cell_setting.ui_label})")
+            cell_setting = self._get_cell_import_mode(cell)
+            print(f"Importing cell '{cell.name}' (ImportMode: {cell_setting.ui_label})")
             
             lay_cell = self.layout.create_cell(cell.name)
             
@@ -153,20 +153,20 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                     print(f"  Skipping instance '{inst.name}' in cell '{cell.name}' (Ignore)")
                     continue
             
-                inst_setting = self._get_instance_import_setting(cell, inst)
+                inst_setting = self._get_instance_import_mode(cell, inst)
                 position = pya.DVector(x, y)
                 placed_inst = None
             
-                if inst_setting == ImportSetting.TECH_CELL_MAPPING:
+                if inst_setting == ImportMode.TECH_CELL_MAPPING:
                     result = self._place_instance_via_tech_mapping(
                         inst, lay_cell, position)
 
-                elif inst_setting == ImportSetting.EXTERNAL_STATIC_CELL:
+                elif inst_setting == ImportMode.EXTERNAL_STATIC_CELL:
                     result = self._place_instance_via_external_static(
                         inst, lay_cell, position)
 
                 else:
-                    print(f"  Warning: unhandled instance ImportSetting "
+                    print(f"  Warning: unhandled instance ImportMode "
                           f"'{inst_setting.value}' for '{inst.name}', skipping.")
                     continue
                 

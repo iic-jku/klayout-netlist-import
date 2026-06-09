@@ -224,9 +224,9 @@ class NetlistImportDialog(pya.QDialog):
         self._setup_netlist_content_tree()
                     
     def _make_cell_import_setting_combo(self, current_value: str = None) -> pya.QComboBox:
-        """Create a QComboBox for cell-level ImportSetting."""
+        """Create a QComboBox for cell-level ImportMode."""
         cb = pya.QComboBox()
-        for s in ImportSetting:
+        for s in ImportMode:
             cb.addItem(s.ui_label, s.value)
         if current_value:
             for i in range(cb.count):
@@ -236,14 +236,14 @@ class NetlistImportDialog(pya.QDialog):
         return cb    
         
     def _make_instance_import_setting_combo(self, current_value: str = None) -> pya.QComboBox:
-        """Create a QComboBox for instance-level ImportSetting (Import Mode column).
+        """Create a QComboBox for instance-level ImportMode (Import Mode column).
 
         Offers Tech Cell Mapping, External Static Cell, and Ignore.
         """
         choices = [
-            ImportSetting.TECH_CELL_MAPPING,
-            ImportSetting.EXTERNAL_STATIC_CELL,
-            ImportSetting.IGNORE,
+            ImportMode.TECH_CELL_MAPPING,
+            ImportMode.EXTERNAL_STATIC_CELL,
+            ImportMode.IGNORE,
         ]
         cb = pya.QComboBox()
         for s in choices:
@@ -472,7 +472,7 @@ class NetlistImportDialog(pya.QDialog):
             cis = settings_map.get(cell.name)
             self._add_cell_item(
                 tree.invisibleRootItem(), cell,
-                import_setting=cis.import_setting.value if cis else None,
+                import_mode=cis.import_mode.value if cis else None,
                 instance_settings=cis.instance_settings if cis else None,
             )
      
@@ -494,7 +494,7 @@ class NetlistImportDialog(pya.QDialog):
         self,
         parent: pya.QTreeWidgetItem,
         cell: NetlistCell,
-        import_setting: str = None,
+        import_mode: str = None,
         instance_settings: List[InstanceImportSetting] = None,
     ) -> pya.QTreeWidgetItem:
         """Create one child row for *cell* under *parent* and return it.
@@ -529,7 +529,7 @@ class NetlistImportDialog(pya.QDialog):
         
         # Col 4 – Import Settings combo box
         cb = self._make_cell_import_setting_combo(
-            import_setting or ImportSetting.NEW_CELL.value
+            import_mode or ImportMode.NEW_CELL.value
         )
         self._import_setting_combos[id(item)] = cb  # prevent GC
         tree.setItemWidget(item, 4, cb)
@@ -550,7 +550,7 @@ class NetlistImportDialog(pya.QDialog):
             sis = inst_map.get(inst.name)
             self._add_instance_item(
                 item, inst,
-                import_setting=sis.import_setting.value if sis else None,
+                import_mode=sis.import_mode.value if sis else None,
                 static_library=sis.static_library if sis and hasattr(sis, 'static_library') else '',
                 static_cell=sis.static_cell if sis and hasattr(sis, 'static_cell') else '',
                 cell_map=cell_map,
@@ -562,9 +562,9 @@ class NetlistImportDialog(pya.QDialog):
         self,
         parent: pya.QTreeWidgetItem,
         inst: DeviceInstance,
-        import_setting: str = None,
+        import_mode: str = None,
         static_library: str = '',
-        static_cell = '',
+        static_cell: str = '',
         cell_map=None,
     ) -> pya.QTreeWidgetItem:
         """Create a child row for a device instance under a cell item.
@@ -601,7 +601,7 @@ class NetlistImportDialog(pya.QDialog):
             item.setForeground(col, grey)
     
         # Col 4 – Import Mode combo box
-        effective_mode = import_setting or ImportSetting.TECH_CELL_MAPPING.value
+        effective_mode = import_mode or ImportMode.TECH_CELL_MAPPING.value
         cb = self._make_instance_import_setting_combo(effective_mode)
         self._import_setting_combos[id(item)] = cb
         tree.setItemWidget(item, 4, cb)
@@ -659,9 +659,9 @@ class NetlistImportDialog(pya.QDialog):
         IGNORE / other
             → None (empty)
         """
-        if mode == ImportSetting.TECH_CELL_MAPPING.value:
+        if mode == ImportMode.TECH_CELL_MAPPING.value:
             return self._make_tech_mapping_widget(item, device_name, cell_map)
-        elif mode == ImportSetting.EXTERNAL_STATIC_CELL.value:
+        elif mode == ImportMode.EXTERNAL_STATIC_CELL.value:
             return self._make_static_cell_widget(item)
         else:
             return None
@@ -692,7 +692,7 @@ class NetlistImportDialog(pya.QDialog):
             ignore_btn.setFixedHeight(self.netlist_page_cell_button_height)
             ignore_btn.clicked.connect(
                 lambda checked=False, it=item:
-                    self._set_instance_mode(it, ImportSetting.IGNORE.value)
+                    self._set_instance_mode(it, ImportMode.IGNORE.value)
             )
  
             add_btn = pya.QPushButton("Add ▸")
@@ -823,6 +823,7 @@ class NetlistImportDialog(pya.QDialog):
         def _populate_cell_combo(lib_name: str):
             """Repopulate cell combo when library selection changes."""
             prev_cell = cell_cb.currentText
+            cell_cb.blockSignals(True)
             cell_cb.clear()
             cell_cb.addItem("")
             for cname in self._get_library_cell_names(lib_name):
@@ -833,8 +834,21 @@ class NetlistImportDialog(pya.QDialog):
                 cell_cb.setCurrentIndex(idx)
             else:
                 cell_cb.setEditText(prev_cell)
-    
+            cell_cb.blockSignals(False)
+
+        lib_cb.blockSignals(True)
+        lib_cb.addItem("")
+        for name in self._get_library_names():
+            lib_cb.addItem(name)
+        idx = lib_cb.findText(saved_lib)
+        if idx >= 0:
+            lib_cb.setCurrentIndex(idx)
+        else:
+            lib_cb.setEditText(saved_lib)
+        lib_cb.blockSignals(False)
+        
         # Initial population of cell combo
+        cell_cb.blockSignals(True)
         _populate_cell_combo(saved_lib)
         # Restore saved cell
         idx = cell_cb.findText(saved_cell)
@@ -842,6 +856,7 @@ class NetlistImportDialog(pya.QDialog):
             cell_cb.setCurrentIndex(idx)
         else:
             cell_cb.setEditText(saved_cell)
+        cell_cb.blockSignals(False)
     
         layout.addWidget(lbl_lib)
         layout.addWidget(lib_cb, 1)
@@ -1019,7 +1034,7 @@ class NetlistImportDialog(pya.QDialog):
     
             # Read cell-level combo
             cb = tree.itemWidget(cell_item, 4)
-            cell_setting = cb.itemData(cb.currentIndex) if cb else ImportSetting.NEW_CELL.value
+            cell_mode = cb.itemData(cb.currentIndex) if cb else ImportMode.NEW_CELL.value
     
             # Read instance-level combos
             inst_settings = []
@@ -1027,16 +1042,18 @@ class NetlistImportDialog(pya.QDialog):
                 inst_item = cell_item.child(j)
                 inst_cb = tree.itemWidget(inst_item, 4)
                 inst_val = (inst_cb.itemData(inst_cb.currentIndex)
-                            if inst_cb else ImportSetting.TECH_CELL_MAPPING.value)
+                            if inst_cb else ImportMode.TECH_CELL_MAPPING.value)
                 inst_settings.append(InstanceImportSetting(
                     instance_name=inst_item.text(0),
                     device_name=inst_item.text(1),
-                    import_setting=ImportSetting(inst_val),
+                    import_mode=ImportMode(inst_val),
+                    static_library=inst_item.data(0, _STATIC_LIBRARY_ROLE) or '',
+                    static_cell=inst_item.data(0, _STATIC_CELL_ROLE) or '',
                 ))
     
             result.append(CellImportSetting(
                 cell_name=cell_name,
-                import_setting=ImportSetting(cell_setting),
+                import_mode=ImportMode(cell_mode),
                 instance_settings=inst_settings,
             ))    
         return result
