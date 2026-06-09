@@ -49,6 +49,10 @@ _PLACEHOLDER_ROLE = int(pya.Qt.UserRole)
 # Role used to tag items so they can be identified later.
 _CELL_NAME_ROLE = int(pya.Qt.UserRole) + 1
 
+# Roles for persisting static-cell library / cell name on instance items
+_STATIC_LIBRARY_ROLE = int(pya.Qt.UserRole) + 2
+_STATIC_CELL_ROLE    = int(pya.Qt.UserRole) + 3
+
 
 #--------------------------------------------------------------------------------
 
@@ -232,12 +236,13 @@ class NetlistImportDialog(pya.QDialog):
         return cb    
         
     def _make_instance_import_setting_combo(self, current_value: str = None) -> pya.QComboBox:
-        """Create a QComboBox for instance-level ImportSetting.
-    
-        Only a subset of choices makes sense at the instance level.
+        """Create a QComboBox for instance-level ImportSetting (Import Mode column).
+
+        Offers Tech Cell Mapping, External Static Cell, and Ignore.
         """
         choices = [
             ImportSetting.TECH_CELL_MAPPING,
+            ImportSetting.EXTERNAL_STATIC_CELL,
             ImportSetting.IGNORE,
         ]
         cb = pya.QComboBox()
@@ -460,6 +465,7 @@ class NetlistImportDialog(pya.QDialog):
         # ---- reset the tree ----------------------------------------------
         tree.clear()
         self._import_setting_combos.clear()
+        self._import_settings_widgets.clear()
         tree.setHeaderHidden(False)     # columns defined in the .ui are kept
         
         for cell in netlist.cells:
@@ -499,7 +505,8 @@ class NetlistImportDialog(pya.QDialog):
         1  Device/Instances – instance count
         2  Ports/Nodes      – port list
         3  Parameters       – subckt default parameters
-        4  Import Setting   – combo box
+        4  Import Mode      – combo box (cell-level)
+        5  Import Settings  – (unused at cell level)
         """
         
         tree = parent.treeWidget()
@@ -533,11 +540,20 @@ class NetlistImportDialog(pya.QDialog):
             for sis in instance_settings:
                 inst_map[sis.instance_name] = sis
     
+        cell_map = self.config_from_ui().cell_map if hasattr(self, '_config') else None
+        try:
+            cell_map = self.config_from_ui().cell_map
+        except Exception:
+            cell_map = None
+    
         for inst in cell.instances:
             sis = inst_map.get(inst.name)
             self._add_instance_item(
                 item, inst,
                 import_setting=sis.import_setting.value if sis else None,
+                static_library=sis.static_library if sis and hasattr(sis, 'static_library') else '',
+                static_cell=sis.static_cell if sis and hasattr(sis, 'static_cell') else '',
+                cell_map=cell_map,
             )
      
         return item
@@ -547,6 +563,9 @@ class NetlistImportDialog(pya.QDialog):
         parent: pya.QTreeWidgetItem,
         inst: DeviceInstance,
         import_setting: str = None,
+        static_library: str = '',
+        static_cell = '',
+        cell_map=None,
     ) -> pya.QTreeWidgetItem:
         """Create a child row for a device instance under a cell item.
     
@@ -556,7 +575,8 @@ class NetlistImportDialog(pya.QDialog):
         1  Device           – device/subckt name being instantiated
         2  Nodes            – connected nodes
         3  Parameters       – instance parameters (key=value)
-        4  Import Settings  – combo box (Tech Mapping, Ignore, etc.)
+        4  Import Mode      – combo box (Tech Mapping, Ignore, etc.)
+        5  Import Settings  – dynamic widget depending on the Import Mode 
         """
         tree = parent.treeWidget()
         item = pya.QTreeWidgetItem(parent)
@@ -580,15 +600,225 @@ class NetlistImportDialog(pya.QDialog):
         for col in range(4):
             item.setForeground(col, grey)
     
-        # Col 4 – Import Settings combo box
-        cb = self._make_instance_import_setting_combo(
-            import_setting or ImportSetting.TECH_CELL_MAPPING.value
-        )
+        # Col 4 – Import Mode combo box
+        effective_mode = import_setting or ImportSetting.TECH_CELL_MAPPING.value
+        cb = self._make_instance_import_setting_combo(effective_mode)
         self._import_setting_combos[id(item)] = cb
         tree.setItemWidget(item, 4, cb)
     
+        # Store static cell lib/cell in item data roles so they survive tree rebuilds
+        item.setData(0, _STATIC_LIBRARY_ROLE, static_library or '')
+        item.setData(0, _STATIC_CELL_ROLE,    static_cell    or '')
+ 
+        # Col 5 – Import Settings widget (mode-dependent)
+        self._refresh_import_settings_widget(tree, item, inst.device_name or '', effective_mode, cell_map)
+ 
+        # Rebuild col-5 widget whenever the mode combo changes
+        cb.currentIndexChanged.connect(
+            lambda _idx, t=tree, it=item, dev=inst.device_name or '', cm=cell_map:
+                self._on_instance_mode_changed(t, it, dev, cm)
+        )
+        
         return item
     
+    def _on_instance_mode_changed(self, tree, item, device_name, cell_map):
+        """Slot: rebuild the Import Settings widget when the mode combo changes."""
+        cb = tree.itemWidget(item, 4)
+        if cb is None:
+            return
+        mode = cb.itemData(cb.currentIndex)
+        self._refresh_import_settings_widget(tree, item, device_name, mode, cell_map)
+ 
+    def _refresh_import_settings_widget(self, tree, item, device_name, mode, cell_map):
+        """Build and install the correct Import Settings widget in col 5."""
+        w = self._make_import_settings_widget(item, device_name, mode, cell_map)
+        # Always store a reference (even None → use empty widget) to prevent GC
+        self._import_settings_widgets[id(item)] = w
+        if w is not None:
+            tree.setItemWidget(item, 5, w)
+        else:
+            # Install an empty transparent widget so the column stays blank
+            empty = pya.QWidget()
+            self._import_settings_widgets[id(item)] = empty
+            tree.setItemWidget(item, 5, empty)
+ 
+    def _make_import_settings_widget(self, item, device_name, mode, cell_map):
+        """Return the appropriate widget for col 5 depending on *mode*.
+ 
+        TECH_CELL_MAPPING
+            • No match in cell_map → red warning label + [Ignore] + [Add →] buttons
+            • Match found          → lib/cell label + [→] navigate button
+        EXTERNAL_STATIC_CELL
+            • Library: [QLineEdit]  Cell: [QLineEdit]
+        IGNORE / other
+            → None (empty)
+        """
+        if mode == ImportSetting.TECH_CELL_MAPPING.value:
+            return self._make_tech_mapping_widget(item, device_name, cell_map)
+        elif mode == ImportSetting.EXTERNAL_STATIC_CELL.value:
+            return self._make_static_cell_widget(item)
+        else:
+            return None
+ 
+    @property
+    def netlist_page_cell_button_height(self) -> int:
+        return 30
+ 
+    def _make_tech_mapping_widget(self, item, device_name, cell_map):
+        """Widget for TECH_CELL_MAPPING mode in col 5."""
+        map_entry = cell_map.map_entry_for_device(device_name) if cell_map and device_name else None
+ 
+        container = pya.QWidget()
+        layout = pya.QHBoxLayout(container)
+        layout.setContentsMargins(2, 0, 2, 0)
+        layout.setSpacing(4)
+ 
+        if map_entry is None:
+            # ── No match: red warning ───────────────────────────────────────
+            warn_lbl = pya.QLabel("⚠ No tech cell mapping")
+            warn_lbl.setStyleSheet("color: #c0392b; font-weight: bold;")
+            warn_lbl.setToolTip(
+                f"Device '{device_name}' has no entry in the Tech Cell Mapping table."
+            )
+ 
+            ignore_btn = pya.QPushButton("Ignore")
+            ignore_btn.setToolTip("Switch this instance to Ignore mode")
+            ignore_btn.setFixedHeight(self.netlist_page_cell_button_height)
+            ignore_btn.clicked.connect(
+                lambda checked=False, it=item:
+                    self._set_instance_mode(it, ImportSetting.IGNORE.value)
+            )
+ 
+            add_btn = pya.QPushButton("Add ▸")
+            add_btn.setToolTip(
+                f"Add a new Tech Cell Mapping entry for '{device_name}' "
+                f"and navigate to the Tech Cell Mapping page"
+            )
+            add_btn.setFixedHeight(self.netlist_page_cell_button_height)
+            add_btn.clicked.connect(
+                lambda checked=False, dev=device_name:
+                    self._on_add_tech_cell_mapping(dev)
+            )
+ 
+            layout.addWidget(warn_lbl)
+            layout.addWidget(ignore_btn)
+            layout.addWidget(add_btn)
+            layout.addStretch(1)
+        else:
+            # ── Match found: show lib / cell ────────────────────────────────
+            info_lbl = pya.QLabel(f"{map_entry.layout_cell_library} / {map_entry.layout_cell}")
+            info_lbl.setToolTip(
+                f"Library: {map_entry.layout_cell_library}\n"
+                f"Cell:    {map_entry.layout_cell}\n"
+                f"Type:    {map_entry.layout_cell_type.ui_label}"
+            )
+ 
+            goto_btn = pya.QPushButton("▸")
+            goto_btn.setToolTip("Go to Tech Cell Mapping and select this entry")
+            goto_btn.setFixedSize(28, self.netlist_page_cell_button_height)
+            goto_btn.clicked.connect(
+                lambda checked=False, dev=device_name:
+                    self._on_goto_tech_cell_mapping(dev)
+            )
+ 
+            layout.addWidget(info_lbl)
+            layout.addWidget(goto_btn)
+            layout.addStretch(1)
+ 
+        return container
+ 
+    def _make_static_cell_widget(self, item):
+        """Widget for EXTERNAL_STATIC_CELL mode in col 5: Library + Cell line edits."""
+        # Restore previously stored values (survive mode switches)
+        saved_lib  = item.data(0, _STATIC_LIBRARY_ROLE) or ''
+        saved_cell = item.data(0, _STATIC_CELL_ROLE)    or ''
+ 
+        container = pya.QWidget()
+        layout = pya.QHBoxLayout(container)
+        layout.setContentsMargins(2, 0, 2, 0)
+        layout.setSpacing(4)
+ 
+        lbl_lib = pya.QLabel("Library:")
+        lib_le  = pya.QLineEdit()
+        lib_le.setPlaceholderText("e.g. SG13_dev")
+        lib_le.setText(saved_lib)
+        lib_le.setMinimumWidth(80)
+ 
+        lbl_cell = pya.QLabel("Cell:")
+        cell_le  = pya.QLineEdit()
+        cell_le.setPlaceholderText("e.g. nmos")
+        cell_le.setText(saved_cell)
+        cell_le.setMinimumWidth(80)
+ 
+        layout.addWidget(lbl_lib)
+        layout.addWidget(lib_le)
+        layout.addWidget(lbl_cell)
+        layout.addWidget(cell_le)
+        layout.addStretch(1)
+ 
+        # Persist changes back into the item's data roles
+        lib_le.textChanged.connect(
+            lambda text, it=item: it.setData(0, _STATIC_LIBRARY_ROLE, text)
+        )
+        cell_le.textChanged.connect(
+            lambda text, it=item: it.setData(0, _STATIC_CELL_ROLE, text)
+        )
+ 
+        return container
+ 
+    def _set_instance_mode(self, item, mode_value: str):
+        """Programmatically switch the Import Mode combo for *item* to *mode_value*."""
+        tree = item.treeWidget()
+        if tree is None:
+            return
+        cb = tree.itemWidget(item, 4)
+        if cb is None:
+            return
+        for i in range(cb.count):
+            if cb.itemData(i) == mode_value:
+                cb.setCurrentIndex(i)
+                break
+ 
+    def _on_goto_tech_cell_mapping(self, device_name: str):
+        """Navigate to Tech Cell Mapping page and select the row for *device_name*."""
+        # Switch to the Tech Cell Mapping page (index 1)
+        self.form.pages_stack.setCurrentIndex(1)
+        nav_item = self.form.items_tw.topLevelItem(1)
+        if nav_item:
+            self.form.items_tw.setCurrentItem(nav_item)
+ 
+        # Select the matching row in the cell map table
+        table = self.page_cell_map.cell_map_tw
+        for row in range(table.rowCount):
+            item = table.item(row, 0)
+            if item and item.text.lower() == device_name.lower():
+                table.selectRow(row)
+                table.scrollToItem(item)
+                break
+ 
+    def _on_add_tech_cell_mapping(self, device_name: str):
+        """Add a new Tech Cell Mapping row pre-filled for *device_name*, then navigate there."""
+        # Navigate first so the user sees what was added
+        self.form.pages_stack.setCurrentIndex(1)
+        nav_item = self.form.items_tw.topLevelItem(1)
+        if nav_item:
+            self.form.items_tw.setCurrentItem(nav_item)
+ 
+        # Add a new row with device_name pre-filled in col 0
+        table = self.page_cell_map.cell_map_tw
+        row = table.rowCount
+        table.blockSignals(True)
+        table.insertRow(row)
+        hints = [device_name, 'SG13_dev', device_name.lower(), None, 'w=@w l=@l ng=@ng m=@m']
+        for col, hint in enumerate(hints):
+            if col == 3:
+                self._set_cell_type_widget(row, CellType.PCELL.value)
+            else:
+                table.setItem(row, col, self._make_data_item(hint or ''))
+        table.blockSignals(False)
+        table.selectRow(row)
+        table.scrollToItem(table.item(row, 0))
+       
     def on_netlist_path_changed(self, widget: FileSelectorWidget):
         try:
             new_path = widget.path
@@ -608,16 +838,18 @@ class NetlistImportDialog(pya.QDialog):
             "Device / Instances", 
             "Ports / Nodes",
             "Parameters",
-            "Import Setting",
+            "Import Mode",
+            "Import Settings",
         ]
         tree.setHeaderLabels(headers)
-        tree.setColumnCount(5)
+        tree.setColumnCount(6)
 
         header = tree.header
         header.setSectionResizeMode(0, pya.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, pya.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(2, pya.QHeaderView.Interactive)
         header.setSectionResizeMode(3, pya.QHeaderView.Interactive)
+        header.setSectionResizeMode(4, pya.QHeaderView.ResizeToContents)        
         header.setStretchLastSection(True)
 
         tree.setSelectionMode(pya.QAbstractItemView.ExtendedSelection)
@@ -628,7 +860,8 @@ class NetlistImportDialog(pya.QDialog):
             tree.resizeColumnToContents(col)
             
         self._import_setting_combos = {}
-        
+        self._import_settings_widgets = {}  # col-5 widgets keyed by id(item)
+
         # Make rows more compact
         tree.setStyleSheet("QTreeWidget::item { padding: 0px; margin: 0px; }")
         tree.setUniformRowHeights(True)
