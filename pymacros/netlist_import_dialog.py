@@ -732,7 +732,7 @@ class NetlistImportDialog(pya.QDialog):
                     self._set_instance_mode(it, ImportMode.IGNORE.value)
             )
  
-            add_btn = pya.QPushButton("Add ▸")
+            add_btn = pya.QPushButton("Add ▶")
             add_btn.setToolTip(
                 f"Add a new Tech Cell Mapping entry for '{device_name}' "
                 f"and navigate to the Tech Cell Mapping page"
@@ -756,7 +756,7 @@ class NetlistImportDialog(pya.QDialog):
                 f"Type:    {map_entry.layout_cell_type.ui_label}"
             )
  
-            goto_btn = pya.QPushButton("▸")
+            goto_btn = pya.QPushButton("▶")
             goto_btn.setToolTip("Go to Tech Cell Mapping and select this entry")
             goto_btn.setFixedSize(28, self.netlist_page_cell_button_height)
             goto_btn.clicked.connect(
