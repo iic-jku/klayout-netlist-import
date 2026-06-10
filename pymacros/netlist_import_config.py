@@ -44,17 +44,8 @@ CONFIG_KEY__NETLIST_IMPORT_CONFIG = 'klayout_netlist_import_config'
 #--------------------------------
 
 class NetlistFileFormat(DualStrEnum):
-    KLAYOUT_LVS_NETLIST = 'lvs_cdl_netlist', 'SPICE Netlist (KLayout LVS format)'
+    # KLAYOUT_LVS_NETLIST = 'lvs_cdl_netlist', 'SPICE Netlist (KLayout LVS format)'
     SPICE_SIMULATION_NETLIST = 'simulation_spice_netlist', 'SPICE Netlist (Simulation format)'
-
-    @property
-    def suffix(self) -> str:
-        if self == NetlistFileFormat.KLAYOUT_LVS_NETLIST:
-            return f'.cdl'
-        elif self == NetlistFileFormat.SPICE_SIMULATION_NETLIST:
-            return f'.cir'
-        else:
-            raise NotImplementedError(f"NetlistFileFormat.suffix: unhandled case {self}")
 
 
 class HierarchyMode(DualStrEnum):
