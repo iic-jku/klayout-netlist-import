@@ -293,10 +293,12 @@ class NetlistImportDialog(pya.QDialog):
         header = tree.horizontalHeader
         header.setSectionResizeMode(0, pya.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(1, pya.QHeaderView.Fixed)
-        tree.setColumnWidth(1, 100)
+        tree.setColumnWidth(1, 120)
         header.setSectionResizeMode(2, pya.QHeaderView.Fixed)
+        tree.setColumnWidth(2, 200)
         header.setSectionResizeMode(3, pya.QHeaderView.Fixed)
-        header.setStretchLastSection(True)      
+        tree.setColumnWidth(3, 200)
+        header.setStretchLastSection(True)
         
         tree.setSelectionBehavior(pya.QAbstractItemView.SelectRows)
         tree.setSelectionMode(pya.QAbstractItemView.ExtendedSelection)
@@ -316,6 +318,58 @@ class NetlistImportDialog(pya.QDialog):
         ]
         
         self._cell_type_combos = {}
+        self._cell_map_lib_combos = {}
+        self._cell_map_cell_combos = {}
+    
+    def _set_cell_map_library_widget(self, row: int, value: str):
+        """Place a library QComboBox in column 2 of the given row."""
+        cb = pya.QComboBox()
+        cb.setEditable(True)
+        cb.addItem("")
+        for name in self._get_library_names():
+            cb.addItem(name)
+        idx = cb.findText(value)
+        if idx >= 0:
+            cb.setCurrentIndex(idx)
+        else:
+            cb.setEditText(value)
+        self._cell_map_lib_combos[row] = cb
+        self.page_cell_map.cell_map_tw.setCellWidget(row, 2, cb)
+        # When library changes, repopulate the cell combo in the same row
+        cb.currentTextChanged.connect(lambda text, r=row: self._on_cell_map_library_changed(r, text))
+    
+    def _set_cell_map_cell_widget(self, row: int, value: str, lib_name: str = ''):
+        """Place a cell QComboBox in column 3 of the given row."""
+        cb = pya.QComboBox()
+        cb.setEditable(True)
+        cb.addItem("")
+        for cname in self._get_library_cell_names(lib_name):
+            cb.addItem(cname)
+        idx = cb.findText(value)
+        if idx >= 0:
+            cb.setCurrentIndex(idx)
+        else:
+            cb.setEditText(value)
+        self._cell_map_cell_combos[row] = cb
+        self.page_cell_map.cell_map_tw.setCellWidget(row, 3, cb)
+    
+    def _on_cell_map_library_changed(self, row: int, lib_name: str):
+        """Repopulate the cell combo when the library combo changes."""
+        cell_cb = self._cell_map_cell_combos.get(row)
+        if cell_cb is None:
+            return
+        prev_cell = cell_cb.currentText
+        cell_cb.blockSignals(True)
+        cell_cb.clear()
+        cell_cb.addItem("")
+        for cname in self._get_library_cell_names(lib_name):
+            cell_cb.addItem(cname)
+        idx = cell_cb.findText(prev_cell)
+        if idx >= 0:
+            cell_cb.setCurrentIndex(idx)
+        else:
+            cell_cb.setEditText(prev_cell)
+        cell_cb.blockSignals(False)    
     
     def _set_cell_type_widget(self, row: int, value: str):
         """Place a QComboBox in column 1 of the given row."""
@@ -595,7 +649,7 @@ class NetlistImportDialog(pya.QDialog):
     def _refresh_cell_import_settings_widget(self, tree, item, mode):
         """Build and install the correct Import Settings widget in col 5 for a cell item."""
         if mode == ImportMode.EXTERNAL_STATIC_CELL.value:
-            w = self._make_static_cell_widget(item)
+            w = self._make_static_cell_widget(item, instance=False)
         else:
             w = pya.QWidget()
         old_item_widget = tree.itemWidget(item, 5)
@@ -641,7 +695,7 @@ class NetlistImportDialog(pya.QDialog):
     
         # Style instance rows slightly differently
         grey = pya.QBrush(pya.QColor(100, 100, 100))
-        for col in range(4):
+        for col in range(tree.columnCount):
             item.setForeground(col, grey)
     
         # Col 4 – Import Mode combo box
@@ -702,9 +756,9 @@ class NetlistImportDialog(pya.QDialog):
             → None (empty)
         """
         if mode == ImportMode.TECH_CELL_MAPPING.value:
-            return self._make_tech_mapping_widget(item, device_name, cell_map)
+            return self._make_tech_mapping_widget(item, device_name, cell_map, instance=True)
         elif mode == ImportMode.EXTERNAL_STATIC_CELL.value:
-            return self._make_static_cell_widget(item)
+            return self._make_static_cell_widget(item, instance=True)
         else:
             return None
  
@@ -712,11 +766,12 @@ class NetlistImportDialog(pya.QDialog):
     def netlist_page_cell_button_height(self) -> int:
         return 30
  
-    def _make_tech_mapping_widget(self, item, device_name, cell_map):
+    def _make_tech_mapping_widget(self, item, device_name, cell_map, instance=False):
         """Widget for TECH_CELL_MAPPING mode in col 5."""
         map_entry = cell_map.map_entry_for_device(device_name) if cell_map and device_name else None
  
         container = pya.QWidget()
+        grey_style = "color: #646464;" if instance else ""
         layout = pya.QHBoxLayout(container)
         layout.setContentsMargins(2, 0, 2, 0)
         layout.setSpacing(4)
@@ -755,6 +810,8 @@ class NetlistImportDialog(pya.QDialog):
         else:
             # ── Match found: show lib / cell ────────────────────────────────
             info_lbl = pya.QLabel(f"{map_entry.layout_cell_library} / {map_entry.layout_cell}")
+            if instance:
+                info_lbl.setStyleSheet(grey_style)
             info_lbl.setToolTip(
                 f"Library: {map_entry.layout_cell_library}\n"
                 f"Cell:    {map_entry.layout_cell}\n"
@@ -832,23 +889,28 @@ class NetlistImportDialog(pya.QDialog):
         lib_cb.setStyleSheet(red if not lib_valid else ok)
         cell_cb.setStyleSheet(red if not cell_valid else ok)
 
-    def _make_static_cell_widget(self, item):
+    def _make_static_cell_widget(self, item, instance=False):
         """Widget for EXTERNAL_STATIC_CELL mode in col 5: Library + Cell line edits."""
         # Restore previously stored values (survive mode switches)
         saved_lib  = item.data(0, _STATIC_LIBRARY_ROLE) or ''
         saved_cell = item.data(0, _STATIC_CELL_ROLE)    or ''
  
         container = pya.QWidget()
+        grey_style = "color: #646464;" if instance else ""
         layout = pya.QHBoxLayout(container)
         layout.setContentsMargins(2, 0, 2, 0)
         layout.setSpacing(4)
  
         lbl_lib = pya.QLabel("Library:")
+        if instance:
+            lbl_lib.setStyleSheet(grey_style)
         lib_cb  = pya.QComboBox()
         lib_cb.setEditable(True)
         lib_cb.setMinimumWidth(100)
         
         lbl_cell = pya.QLabel("Cell:")
+        if instance:
+            lbl_cell.setStyleSheet(grey_style)
         cell_cb  = pya.QComboBox()
         cell_cb.setEditable(True)
         cell_cb.setMinimumWidth(100)
@@ -972,12 +1034,11 @@ class NetlistImportDialog(pya.QDialog):
         row = table.rowCount
         table.blockSignals(True)
         table.insertRow(row)
-        hints = [device_name, None, 'SG13_dev', device_name.lower(), 'w=@w l=@l ng=@ng m=@m']
-        for col, hint in enumerate(hints):
-            if col == 1:
-                self._set_cell_type_widget(row, CellType.PCELL.value)
-            else:
-                table.setItem(row, col, self._make_data_item(hint or ''))
+        table.setItem(row, 0, self._make_data_item(device_name))
+        self._set_cell_type_widget(row, CellType.PCELL.value)
+        self._set_cell_map_library_widget(row, 'SG13_dev')
+        self._set_cell_map_cell_widget(row, device_name.lower(), 'SG13_dev')
+        table.setItem(row, 4, self._make_data_item('w=@w l=@l ng=@ng m=@m'))
         table.blockSignals(False)
         table.selectRow(row)
         table.scrollToItem(table.item(row, 0))
@@ -1116,15 +1177,24 @@ class NetlistImportDialog(pya.QDialog):
     def cell_map_from_ui(self, table_widget: pya.QTableWidget):
         entries = []
         for row in range(table_widget.rowCount):
-            def cell(col):
+            def cell_text(col):
                 item = table_widget.item(row, col)
                 return item.text if item is not None else ''
+                
+            # Read library from combo widget
+            lib_cb = self._cell_map_lib_combos.get(row)
+            lib_name = lib_cb.currentText.strip() if lib_cb else cell_text(2)
+            
+            # Read cell from combo widget
+            cell_cb = self._cell_map_cell_combos.get(row)
+            cell_name = cell_cb.currentText.strip() if cell_cb else cell_text(3)
+                
             entries.append(CellMapEntry(
-                netlist_device      = cell(0),
+                netlist_device      = cell_text(0),
                 layout_cell_type    = CellType(self._get_cell_type_value(row)),
-                layout_cell_library = cell(2),
-                layout_cell         = cell(3),
-                parameter_mapping   = self._parse_parameter_mapping(cell(4))
+                layout_cell_library = lib_name,
+                layout_cell         = cell_name,
+                parameter_mapping   = self._parse_parameter_mapping(cell_text(4))
             ))
         return CellMap(entries=entries)        
     
@@ -1173,13 +1243,17 @@ class NetlistImportDialog(pya.QDialog):
             cells = [
                 e.netlist_device,
                 None,   # CellType handled separately
-                e.layout_cell_library,
-                e.layout_cell,
+                None,   # Library handled separately
+                None,   # Cell handled separately
                 self._format_parameter_mapping(e.parameter_mapping)
             ]
             for col, value in enumerate(cells):
                 if col == 1:  # cell type combo box
                     self._set_cell_type_widget(row, e.layout_cell_type.value)
+                elif col == 2:
+                    self._set_cell_map_library_widget(row, e.layout_cell_library)
+                elif col == 3:
+                    self._set_cell_map_cell_widget(row, e.layout_cell, e.layout_cell_library)
                 else:
                     self.page_cell_map.cell_map_tw.setItem(row, col, self._make_data_item(value))
                 
@@ -1366,15 +1440,25 @@ class NetlistImportDialog(pya.QDialog):
             self._reindex_stashed_params()        
         except Exception as e:
             traceback.print_exc()
-
+    
     def _reindex_cell_type_combos(self):
         """Rebuild the row→combo dict after rows are deleted."""
-        new = {}
+        new_type = {}
+        new_lib = {}
+        new_cell = {}
         for row in range(self.page_cell_map.cell_map_tw.rowCount):
             cb = self.page_cell_map.cell_map_tw.cellWidget(row, 1)
             if cb is not None:
-                new[row] = cb
-        self._cell_type_combos = new
+                new_type[row] = cb
+            cb = self.page_cell_map.cell_map_tw.cellWidget(row, 2)
+            if cb is not None:
+                new_lib[row] = cb
+            cb = self.page_cell_map.cell_map_tw.cellWidget(row, 3)
+            if cb is not None:
+                new_cell[row] = cb
+        self._cell_type_combos = new_type
+        self._cell_map_lib_combos = new_lib
+        self._cell_map_cell_combos = new_cell
         
     def _reindex_stashed_params(self):
         """Rebuild row keys in _stashed_params after row deletion."""
