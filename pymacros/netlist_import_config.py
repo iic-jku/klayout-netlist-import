@@ -62,7 +62,7 @@ class HierarchyMode(DualStrEnum):
     FLATTEN = 'flatten_hierarchy', 'Flatten Hierarchy'
 
 
-class ImportSetting(DualStrEnum):
+class ImportMode(DualStrEnum):
     IGNORE = 'ignore', 'Ignore'
     NEW_CELL = 'new_cell', 'New Cell'
     TECH_CELL_MAPPING = 'tech_cell_mapping', 'Tech Cell Mapping'
@@ -74,14 +74,18 @@ class InstanceImportSetting:
     """Per-instance import setting (persisted)."""
     instance_name: str = ''
     device_name: str = ''
-    import_setting: ImportSetting = ImportSetting.TECH_CELL_MAPPING
+    import_mode: ImportMode = ImportMode.TECH_CELL_MAPPING
+    static_library: str = ''
+    static_cell: str = ''
 
 
 @dataclass
 class CellImportSetting:
     """Per-cell import setting with nested instance settings (persisted)."""
     cell_name: str = ''
-    import_setting: ImportSetting = ImportSetting.NEW_CELL
+    import_mode: ImportMode = ImportMode.NEW_CELL
+    static_library: str = ''
+    static_cell: str = ''
     instance_settings: List[InstanceImportSetting] = field(default_factory=list)
 
     def instance_setting_for(self, instance_name: str) -> Optional[InstanceImportSetting]:
@@ -176,13 +180,17 @@ class NetlistImportConfig:
                     inst_settings.append(InstanceImportSetting(
                         instance_name=inst.get('instance_name', ''),
                         device_name=inst.get('device_name', ''),
-                        import_setting=ImportSetting(inst.get('import_setting',
-                                                              ImportSetting.TECH_CELL_MAPPING.value)),
+                        import_mode=ImportMode(inst.get('import_mode',
+                                                        ImportMode.TECH_CELL_MAPPING.value)),
+                        static_library=inst.get('static_library', ''),
+                        static_cell=inst.get('static_cell', '')
                     ))
                 settings.cell_import_settings.append(CellImportSetting(
                     cell_name=entry.get('cell_name', ''),
-                    import_setting=ImportSetting(entry.get('import_setting',
-                                                           ImportSetting.NEW_CELL.value)),
+                    import_mode=ImportMode(entry.get('import_mode',
+                                                     ImportMode.NEW_CELL.value)),
+                    static_library=entry.get('static_library', ''),
+                    static_cell=entry.get('static_cell', ''),
                     instance_settings=inst_settings,
                 ))
         
@@ -228,12 +236,16 @@ class NetlistImportConfig:
             'cell_import_settings': [
                 {
                     'cell_name': cis.cell_name,
-                    'import_setting': cis.import_setting.value,
+                    'import_mode': cis.import_mode.value,
+                    'static_library': cis.static_library,
+                    'static_cell': cis.static_cell,
                     'instance_settings': [
                         {
                             'instance_name': inst.instance_name,
                             'device_name': inst.device_name,
-                            'import_setting': inst.import_setting.value,
+                            'import_mode': inst.import_mode.value,
+                            'static_library': inst.static_library,
+                            'static_cell': inst.static_cell,
                         }
                         for inst in cis.instance_settings
                     ]

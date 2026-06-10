@@ -36,6 +36,12 @@
     <layout class="QVBoxLayout" name="verticalLayout_6">
      <item>
       <widget class="QGroupBox" name="groupBox_3">
+       <property name="minimumSize">
+        <size>
+         <width>1000</width>
+         <height>0</height>
+        </size>
+       </property>
        <property name="title">
         <string>Source Netlist</string>
        </property>
@@ -215,7 +221,12 @@
         </column>
         <column>
          <property name="text">
-          <string>Import Settings</string>
+          <string>Import Setting</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Import Params</string>
          </property>
         </column>
        </widget>

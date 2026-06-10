@@ -63,3 +63,52 @@ class CellMap:
             if e.netlist_device.lower() == netlist_device.lower():
                 return e
         return None
+
+
+@dataclass
+class CellMap:
+    entries: List[CellMapEntry] = field(default_factory=list)
+
+    def map_entry_for_device(self, netlist_device: str) -> Optional[CellMapEntry]:
+        for e in self.entries:
+            if e.netlist_device.lower() == netlist_device.lower():
+                return e
+        return None
+
+    def save_json(self, path: Path):
+        """Save cell map entries to a JSON file."""
+        data = {
+            'cell_map': {
+                'entries': [
+                    {
+                        'netlist_device': e.netlist_device,
+                        'layout_cell_library': e.layout_cell_library,
+                        'layout_cell': e.layout_cell,
+                        'layout_cell_type': e.layout_cell_type.value,
+                        'parameter_mapping': {'entries': e.parameter_mapping.entries},
+                    }
+                    for e in self.entries
+                ]
+            }
+        }
+        with open(str(path), 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+
+    @classmethod
+    def load_json(cls, path: Path) -> CellMap:
+        """Load cell map entries from a JSON file."""
+        with open(str(path), 'r', encoding='utf-8') as f:
+            raw = json.load(f)
+        cell_map_data = raw.get('cell_map', raw)
+        entries = []
+        for item in cell_map_data.get('entries', []):
+            entries.append(CellMapEntry(
+                netlist_device=item.get('netlist_device', ''),
+                layout_cell_library=item.get('layout_cell_library', ''),
+                layout_cell=item.get('layout_cell', ''),
+                layout_cell_type=CellType(item.get('layout_cell_type', CellType.PCELL.value)),
+                parameter_mapping=ParameterMapping(
+                    entries=item.get('parameter_mapping', {}).get('entries', {})
+                ),
+            ))
+        return cls(entries=entries)
