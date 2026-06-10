@@ -289,6 +289,9 @@ class NetlistImportDialog(pya.QDialog):
         p.cell_map_add_pb.clicked.connect(self.on_add_cell_mapping)
         p.cell_map_remove_pb.clicked.connect(self.on_remove_cell_mapping)
         
+        p.load_map_pb.clicked.connect(self.on_load_cell_map)
+        p.save_map_pb.clicked.connect(self.on_save_cell_map)
+        
         tree = p.cell_map_tw
         header = tree.horizontalHeader
         header.setSectionResizeMode(0, pya.QHeaderView.ResizeToContents)
@@ -1573,6 +1576,103 @@ class NetlistImportDialog(pya.QDialog):
         selected = self.page_cell_map.cell_map_tw.selectedItems()
         self.page_cell_map.cell_map_remove_pb.setEnabled(bool(selected))
 
+    def on_save_cell_map(self):
+        """Save the current Tech Cell Mapping table to a JSON file."""
+        if Debugging.DEBUG:
+            debug("NetlistImportDialog.on_save_cell_map")
+    
+        try:
+            start_dir = FileSystemHelpers.least_recent_directory()
+            suggested = str(Path(start_dir) / self._suggest_cell_map_filename())
+    
+            file_path_str = pya.QFileDialog.getSaveFileName(
+                self,
+                "Save Cell Mapping",
+                suggested,
+                "Cell Mapping files (*.json);;All Files (*)"
+            )
+            if not file_path_str:
+                return
+    
+            file_path = Path(file_path_str)
+            if file_path.suffix.lower() != '.json':
+                file_path = file_path.with_suffix('.json')
+    
+            cell_map = self.cell_map_from_ui(self.page_cell_map.cell_map_tw)
+            cell_map.save_json(file_path)
+            FileSystemHelpers.set_least_recent_directory(file_path.parent)
+        except Exception as e:
+            qmessagebox_critical('Error', "Failed to save cell mapping", f"<pre>{e}</pre>")
+            traceback.print_exc()
+    
+    def on_load_cell_map(self):
+        """Load a Tech Cell Mapping table from a JSON file."""
+        if Debugging.DEBUG:
+            debug("NetlistImportDialog.on_load_cell_map")
+    
+        try:
+            start_dir = FileSystemHelpers.least_recent_directory()
+    
+            file_path_str = pya.QFileDialog.getOpenFileName(
+                self,
+                "Load Cell Mapping",
+                start_dir,
+                "Cell Mapping files (*.json);;All Files (*)"
+            )
+            if not file_path_str:
+                return
+    
+            file_path = Path(file_path_str)
+            cell_map = CellMap.load_json(file_path)
+            self._apply_cell_map_to_ui(cell_map)
+            FileSystemHelpers.set_least_recent_directory(file_path.parent)
+        except Exception as e:
+            qmessagebox_critical('Error', "Failed to load cell mapping", f"<pre>{e}</pre>")
+            traceback.print_exc()
+    
+    @staticmethod
+    def _suggest_cell_map_filename() -> str:
+        """Return a suggested cell-map filename like ``TECH_cell_mapping.json``."""
+        try:
+            view = pya.LayoutView.current()
+            if view:
+                ly = view.active_cellview().layout()
+                tech_name = ly.technology().name
+                if tech_name:
+                    safe = "".join(c if c.isalnum() or c in "-_.()" else "_" for c in tech_name)
+                    return f"{safe}_cell_mapping.json"
+        except Exception:
+            pass
+        return "cell_mapping.json"
+    
+    def _apply_cell_map_to_ui(self, cell_map: CellMap):
+        """Replace the current Tech Cell Mapping table contents with *cell_map*."""
+        table = self.page_cell_map.cell_map_tw
+    
+        self._cell_type_combos.clear()
+        self._cell_map_lib_combos.clear()
+        self._cell_map_cell_combos.clear()
+        self._stashed_params = {}
+    
+        table.blockSignals(True)
+        table.setRowCount(0)
+    
+        for row, e in enumerate(cell_map.entries):
+            table.insertRow(row)
+            # Col 0 – Netlist Device
+            table.setItem(row, 0, self._make_data_item(e.netlist_device))
+            # Col 1 – Cell Type
+            self._set_cell_type_widget(row, e.layout_cell_type.value)
+            # Col 2 – Library
+            self._set_cell_map_library_widget(row, e.layout_cell_library)
+            # Col 3 – Cell
+            self._set_cell_map_cell_widget(row, e.layout_cell, e.layout_cell_library)
+            # Col 4 – Parameters
+            table.setItem(row, 4, self._make_data_item(
+                self._format_parameter_mapping(e.parameter_mapping)
+            ))
+    
+        table.blockSignals(False)
 
 #--------------------------------------------------------------------------------
 
