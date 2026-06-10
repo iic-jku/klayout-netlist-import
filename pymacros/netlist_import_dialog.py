@@ -226,8 +226,13 @@ class NetlistImportDialog(pya.QDialog):
                     
     def _make_cell_import_setting_combo(self, current_value: str = None) -> pya.QComboBox:
         """Create a QComboBox for cell-level ImportMode."""
+        choices = [
+            ImportMode.NEW_CELL,
+            ImportMode.EXTERNAL_STATIC_CELL,
+            ImportMode.IGNORE,
+        ]
         cb = pya.QComboBox()
-        for s in ImportMode:
+        for s in choices:
             cb.addItem(s.ui_label, s.value)
         if current_value:
             for i in range(cb.count):
