@@ -320,6 +320,7 @@ class NetlistImportDialog(pya.QDialog):
         self._cell_type_combos = {}
         self._cell_map_lib_combos = {}
         self._cell_map_cell_combos = {}
+        self._auto_switching_cell_type = False
     
     def _set_cell_map_library_widget(self, row: int, value: str):
         """Place a library QComboBox in column 2 of the given row."""
@@ -335,41 +336,109 @@ class NetlistImportDialog(pya.QDialog):
             cb.setEditText(value)
         self._cell_map_lib_combos[row] = cb
         self.page_cell_map.cell_map_tw.setCellWidget(row, 2, cb)
-        # When library changes, repopulate the cell combo in the same row
+        
         cb.currentTextChanged.connect(lambda text, r=row: self._on_cell_map_library_changed(r, text))
+        cb.currentTextChanged.connect(lambda text, r=row: self._validate_cell_map_row(r))
     
     def _set_cell_map_cell_widget(self, row: int, value: str, lib_name: str = ''):
         """Place a cell QComboBox in column 3 of the given row."""
         cb = pya.QComboBox()
         cb.setEditable(True)
-        cb.addItem("")
-        for cname in self._get_library_cell_names(lib_name):
-            cb.addItem(cname)
-        idx = cb.findText(value)
+        self._populate_cell_map_cell_combo(cb, lib_name)
+        idx = cb.findData(value)
         if idx >= 0:
             cb.setCurrentIndex(idx)
         else:
             cb.setEditText(value)
         self._cell_map_cell_combos[row] = cb
         self.page_cell_map.cell_map_tw.setCellWidget(row, 3, cb)
+        # When cell selection changes, auto-switch the cell type combo
+        cb.currentIndexChanged.connect(lambda _idx, r=row: self._on_cell_map_cell_changed(r))
+        cb.currentIndexChanged.connect(lambda _idx, r=row: self._validate_cell_map_row(r))
+        cb.currentTextChanged.connect(lambda text, r=row: self._validate_cell_map_row(r))
+        # Initial validation (deferred so both combos are installed)
+        EventLoop.defer(lambda r=row: self._validate_cell_map_row(r))
+    
+    def _populate_cell_map_cell_combo(self, cb: pya.QComboBox, lib_name: str):
+        """Fill cell combo with 'P name' / 'S name' entries, storing bare name as data."""
+        cb.blockSignals(True)
+        cb.clear()
+        cb.addItem("", "")
+        for name, is_pcell in self._get_library_cell_names_with_type(lib_name):
+            prefix = "Ⓟ" if is_pcell else "Ⓢ"
+            cb.addItem(f"{prefix} {name}", name)
+        cb.blockSignals(False)
     
     def _on_cell_map_library_changed(self, row: int, lib_name: str):
-        """Repopulate the cell combo when the library combo changes."""
+        """Repopulate the cell combo and reset selection when the library combo changes."""
         cell_cb = self._cell_map_cell_combos.get(row)
         if cell_cb is None:
             return
-        prev_cell = cell_cb.currentText
-        cell_cb.blockSignals(True)
-        cell_cb.clear()
-        cell_cb.addItem("")
-        for cname in self._get_library_cell_names(lib_name):
-            cell_cb.addItem(cname)
-        idx = cell_cb.findText(prev_cell)
-        if idx >= 0:
-            cell_cb.setCurrentIndex(idx)
-        else:
-            cell_cb.setEditText(prev_cell)
-        cell_cb.blockSignals(False)    
+        self._populate_cell_map_cell_combo(cell_cb, lib_name)
+        # Reset cell to empty
+        cell_cb.setCurrentIndex(0)
+        cell_cb.setEditText('')
+    
+    def _on_cell_map_cell_changed(self, row: int):
+        """Auto-switch the CellType combo when a cell is selected from the dropdown."""
+        cell_cb = self._cell_map_cell_combos.get(row)
+        if cell_cb is None:
+            return
+        idx = cell_cb.currentIndex
+        if idx < 0:
+            return
+        cell_name = cell_cb.itemData(idx)
+        if not cell_name:
+            return
+        
+        # Determine if this cell is a PCell
+        lib_cb = self._cell_map_lib_combos.get(row)
+        if lib_cb is None:
+            return
+        lib_name = lib_cb.currentText.strip()
+        if not lib_name:
+            return
+        
+        cells_with_type = self._get_library_cell_names_with_type(lib_name)
+        is_pcell = False
+        for name, pcell_flag in cells_with_type:
+            if name == cell_name:
+                is_pcell = pcell_flag
+                break
+        
+        # Auto-switch CellType combo (suppress the clear from _on_cell_type_changed)
+        type_cb = self._cell_type_combos.get(row)
+        if type_cb is None:
+            return
+        target_type = CellType.PCELL.value if is_pcell else CellType.STATIC_CELL.value
+        self._auto_switching_cell_type = True
+        try:
+            for i in range(type_cb.count):
+                if type_cb.itemData(i) == target_type:
+                    type_cb.setCurrentIndex(i)
+                    break
+        finally:
+            self._auto_switching_cell_type = False
+        
+    def _validate_cell_map_row(self, row: int):
+        """Set red background on cell map library/cell combos if their value is invalid."""
+        lib_cb = self._cell_map_lib_combos.get(row)
+        cell_cb = self._cell_map_cell_combos.get(row)
+        if lib_cb is None or cell_cb is None:
+            return
+    
+        lib_name = lib_cb.currentText.strip()
+        lib_valid = bool(lib_name) and lib_name in self._get_library_names()
+    
+        cell_name = cell_cb.itemData(cell_cb.currentIndex) if cell_cb.currentIndex >= 0 and cell_cb.itemData(cell_cb.currentIndex) else cell_cb.currentText.strip()
+        cell_valid = False
+        if lib_valid and cell_name:
+            cell_valid = cell_name in self._get_library_cell_names(lib_name)
+    
+        red = "QComboBox { background-color: #ffcccc; }"
+        ok  = ""
+        lib_cb.setStyleSheet(red if not lib_valid else ok)
+        cell_cb.setStyleSheet(red if not cell_valid else ok)    
     
     def _set_cell_type_widget(self, row: int, value: str):
         """Place a QComboBox in column 1 of the given row."""
@@ -383,6 +452,14 @@ class NetlistImportDialog(pya.QDialog):
         """Called when the CellType combo in *row* changes."""
         value = self._get_cell_type_value(row)
         self._update_param_cell_state(row, value)
+            
+        # Clear the cell combo only when the user manually switches cell type
+        if not getattr(self, '_auto_switching_cell_type', False):
+            cell_cb = self._cell_map_cell_combos.get(row)
+            if cell_cb is not None:
+                cell_cb.setCurrentIndex(0)
+                cell_cb.setEditText('')
+            self._validate_cell_map_row(row)
     
     def _update_param_cell_state(self, row: int, cell_type_value: str):
         """Enable/disable the parameter cell (col 4) based on cell type."""
@@ -854,25 +931,38 @@ class NetlistImportDialog(pya.QDialog):
             traceback.print_exc()
             return []
     
-    def _get_library_cell_names(self, lib_name: str) -> List[str]:
-        """Return sorted list of cell names in the given library."""
+    def _get_library_cell_names_with_type(self, lib_name: str) -> List[Tuple[str, bool]]:
+        """Return sorted list of (cell_name, is_pcell) in the given library."""
         try:
             lib = pya.Library.library_by_name(lib_name, self.tech.name)
             if lib is None:
                 if Debugging.DEBUG:
-                    debug(f"NetlistImportPluginFactory._get_library_cell_names: no lib '{lib_name}'")
+                    debug(f"NetlistImportPluginFactory._get_library_cell_names_with_type: no lib '{lib_name}'")
                 return []
             ly = lib.layout()
-            names = sorted([c.name for c in ly.each_cell()])
-            if Debugging.DEBUG:
-                debug(f"NetlistImportPluginFactory._get_library_cell_names({lib_name}): {names[:10]}...")
-            if not names:
-                pass
-            return names
+            
+            result = {}
+            
+            # Collect PCell declarations (these don't appear in each_cell)
+            for pcell_id in ly.pcell_ids():
+                decl = ly.pcell_declaration(pcell_id)
+                if decl:
+                    result[decl.name()] = True
+            
+            # Collect static cells (skip PCell variants)
+            for c in ly.each_cell():
+                if c.name not in result and not c.is_pcell_variant():
+                    result[c.name] = False
+            
+            return sorted(result.items(), key=lambda x: x[0])
         except Exception as e:
-            print(f"DEBUG _get_library_cell_names FAILED: {e}")
+            print(f"DEBUG _get_library_cell_names_with_type FAILED: {e}")
             traceback.print_exc()
             return []
+            
+    def _get_library_cell_names(self, lib_name: str) -> List[str]:
+        """Return sorted list of cell names in the given library."""
+        return [name for name, _ in self._get_library_cell_names_with_type(lib_name)]
             
     def _validate_static_cell_combo(self, lib_cb: pya.QComboBox, cell_cb: pya.QComboBox):
         """Set red background on library/cell combos if their value is invalid."""
@@ -1185,9 +1275,13 @@ class NetlistImportDialog(pya.QDialog):
             lib_cb = self._cell_map_lib_combos.get(row)
             lib_name = lib_cb.currentText.strip() if lib_cb else cell_text(2)
             
-            # Read cell from combo widget
+            # Read cell from combo widget (prefer data role for bare name)
             cell_cb = self._cell_map_cell_combos.get(row)
-            cell_name = cell_cb.currentText.strip() if cell_cb else cell_text(3)
+            if cell_cb is not None:
+                idx = cell_cb.currentIndex
+                cell_name = cell_cb.itemData(idx) if idx >= 0 and cell_cb.itemData(idx) else cell_cb.currentText.strip()
+            else:
+                cell_name = cell_text(3)
                 
             entries.append(CellMapEntry(
                 netlist_device      = cell_text(0),
@@ -1413,12 +1507,16 @@ class NetlistImportDialog(pya.QDialog):
             row = table.rowCount
             table.blockSignals(True)
             table.insertRow(row)
-            hints = ['SG13_LV_NMOS', None, 'SG13_dev', 'nmos', 'w=@w l=@l ng=@ng m=@m']
-            for col, hint in enumerate(hints):
-                if col == 1:
-                    self._set_cell_type_widget(row, CellType.PCELL.value)
-                else:
-                    table.setItem(row, col, self._make_placeholder_item(hint))
+            # Col 0 - netlist device
+            table.setItem(row, 0, self._make_placeholder_item('SG13_LV_NMOS'))
+            # Col 1 - cell type
+            self._set_cell_type_widget(row, CellType.PCELL.value)
+            # Col 2 - library
+            self._set_cell_map_library_widget(row, 'SG13_dev')
+            # Col 3 - cell
+            self._set_cell_map_cell_widget(row, 'nmos', 'SG13_dev')
+            # Col 4 - parameters
+            table.setItem(row, 4, self._make_placeholder_item('w=@w l=@l ng=@ng m=@m'))
             table.blockSignals(False)
             table.selectRow(row)
         except Exception as e:
