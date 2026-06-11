@@ -40,7 +40,7 @@ class GridPlacer:
     def __init__(self, config: NetlistImportConfig):
         self.origin_x = config.origin_x
         self.origin_y = config.origin_y
-        self.spacing = config.spacing
+        self.pitch = config.pitch
         self.limit_columns = config.limit_columns
         self.max_columns = config.max_columns
         self.col = 0
@@ -51,8 +51,8 @@ class GridPlacer:
         self.row = 0
     
     def next_position(self) -> GridPosition:
-        x = self.origin_x + self.col * self.spacing
-        y = self.origin_y + self.row * self.spacing
+        x = self.origin_x + self.col * self.pitch
+        y = self.origin_y + self.row * self.pitch
         
         self.col += 1
         if self.limit_columns and self.col >= self.max_columns:

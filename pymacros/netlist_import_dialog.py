@@ -1365,7 +1365,7 @@ class NetlistImportDialog(pya.QDialog):
             origin_y=self.page_layout.origin_y_sb.value,
             limit_columns=self.page_layout.limit_columns_cb.checked,
             max_columns=self.page_layout.max_columns_sb.value,
-            spacing=self.page_layout.spacing_sb.value
+            pitch=self.page_layout.pitch_sb.value
         )    
     
     def update_ui_from_config(self, config: NetlistImportConfig):
@@ -1387,7 +1387,7 @@ class NetlistImportDialog(pya.QDialog):
         
         self.page_layout.limit_columns_cb.setChecked(config.limit_columns)
         self.page_layout.max_columns_sb.setValue(config.max_columns)
-        self.page_layout.spacing_sb.setValue(config.spacing)        
+        self.page_layout.pitch_sb.setValue(config.pitch)        
 
         self._cell_type_combos.clear()
         

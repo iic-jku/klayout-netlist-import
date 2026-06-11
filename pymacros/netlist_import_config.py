@@ -98,7 +98,7 @@ class NetlistImportConfig:
     origin_y: float = 0.0
     limit_columns: bool = True
     max_columns: int = 10   
-    spacing: float = 1.0    # µm
+    pitch: float = 50.0    # µm
     
     @classmethod
     def default_for_tech(cls, tech: pya.Technology) -> NetlistImportConfig:
@@ -202,9 +202,9 @@ class NetlistImportConfig:
         if max_columns_str is not None:
             settings.max_columns = int(max_columns_str)
         
-        spacing_str = d.get('spacing', None)
-        if spacing_str is not None:
-            settings.spacing = float(spacing_str)
+        pitch_str = d.get('pitch', None)
+        if pitch_str is not None:
+            settings.pitch = float(pitch_str)
 
         return settings
     
@@ -248,6 +248,6 @@ class NetlistImportConfig:
             'origin_y': str(self.origin_y),
             'limit_columns': str(int(self.limit_columns)),
             'max_columns': str(self.max_columns),
-            'spacing': str(self.spacing)
+            'pitch': str(self.pitch)
         }
         return d
