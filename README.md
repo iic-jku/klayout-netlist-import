@@ -4,9 +4,11 @@
 [![Watch the demo](doc/screenshot-demo-video.gif)](https://youtube.com/watch/v=TODO)
 -->
 
-* Import you netlist and place cell instances (e.g. Pcells)
+* Import you netlist and place cell instances (e.g. PCells, static cells)
    
 This add-on can be installed through [KLayout](https://klayout.de) package manager, [see installation instructions here](#installation-instructions)
+
+<img align="middle" src="doc/klayout-netlist-importer-netlist-page.jpg" alt="Netlist Importer: Netlist Page" width="800"/>
 
 ## Usage
 
