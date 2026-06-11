@@ -247,6 +247,7 @@ class NetlistImportDialog(pya.QDialog):
         Offers Tech Cell Mapping, External Static Cell, and Ignore.
         """
         choices = [
+            ImportMode.NETLIST_CELL,
             ImportMode.TECH_CELL_MAPPING,
             ImportMode.EXTERNAL_STATIC_CELL,
             ImportMode.IGNORE,
@@ -593,6 +594,9 @@ class NetlistImportDialog(pya.QDialog):
             When provided, combo boxes are restored to their saved values.
         """
         
+        cv = pya.CellView.active()
+        top_cell_name = cv.cell.name
+        
         settings_map = {}
         if cell_import_settings:
             for cis in cell_import_settings:
@@ -600,7 +604,7 @@ class NetlistImportDialog(pya.QDialog):
         
         # ---- parse -------------------------------------------------------
         parser = NetlistParser()
-        netlist = parser.parse(netlist_path)
+        netlist = parser.parse(netlist_path, implicit_top_cell_name=top_cell_name)
      
         # ---- reset the tree ----------------------------------------------
         tree.clear()
@@ -608,7 +612,9 @@ class NetlistImportDialog(pya.QDialog):
         self._import_settings_widgets.clear()
         tree.setHeaderHidden(False)     # columns defined in the .ui are kept
         
-        for cell in netlist.cells:
+        netlist_cell_names = {c.name for c in netlist.all_cells}
+        
+        for cell in netlist.all_cells:
             cis = settings_map.get(cell.name)
             self._add_cell_item(
                 tree.invisibleRootItem(), cell,
@@ -616,6 +622,7 @@ class NetlistImportDialog(pya.QDialog):
                 static_library=cis.static_library if cis else '',
                 static_cell=cis.static_cell if cis else '',
                 instance_settings=cis.instance_settings if cis else None,
+                netlist_cell_names=netlist_cell_names,
             )
      
         # Resize all columns to fit their contents compactly.
@@ -640,6 +647,7 @@ class NetlistImportDialog(pya.QDialog):
         static_library: str = '',
         static_cell: str = '',
         instance_settings: List[InstanceImportSetting] = None,
+        netlist_cell_names: Set[str] = None,
     ) -> pya.QTreeWidgetItem:
         """Create one child row for *cell* under *parent* and return it.
      
@@ -710,6 +718,7 @@ class NetlistImportDialog(pya.QDialog):
                 static_library=sis.static_library if sis and hasattr(sis, 'static_library') else '',
                 static_cell=sis.static_cell if sis and hasattr(sis, 'static_cell') else '',
                 cell_map=cell_map,
+                netlist_cell_names=netlist_cell_names,
             )
      
         return item
@@ -744,6 +753,7 @@ class NetlistImportDialog(pya.QDialog):
         static_library: str = '',
         static_cell: str = '',
         cell_map=None,
+        netlist_cell_names: Set[str] = None,
     ) -> pya.QTreeWidgetItem:
         """Create a child row for a device instance under a cell item.
     
@@ -779,7 +789,13 @@ class NetlistImportDialog(pya.QDialog):
             item.setForeground(col, grey)
     
         # Col 4 – Import Mode combo box
-        effective_mode = import_mode or ImportMode.TECH_CELL_MAPPING.value
+        if import_mode is None:  # no persisted setting
+            if netlist_cell_names and inst.device_name in netlist_cell_names:
+                effective_mode = ImportMode.NETLIST_CELL.value
+            else:
+                effective_mode = ImportMode.TECH_CELL_MAPPING.value
+        else:
+            effective_mode = import_mode
         cb = self._make_instance_import_setting_combo(effective_mode)
         self._import_setting_combos[id(item)] = cb
         tree.setItemWidget(item, 4, cb)
@@ -839,6 +855,8 @@ class NetlistImportDialog(pya.QDialog):
             return self._make_tech_mapping_widget(item, device_name, cell_map, instance=True)
         elif mode == ImportMode.EXTERNAL_STATIC_CELL.value:
             return self._make_static_cell_widget(item, instance=True)
+        elif mode == ImportMode.NETLIST_CELL:
+            return self._make_netlist_cell_widget(item, device_name)
         else:
             return None
  
@@ -1081,6 +1099,47 @@ class NetlistImportDialog(pya.QDialog):
         
         return container
  
+    def _make_netlist_cell_widget(self, item, device_name):
+        container = pya.QWidget()
+        layout = pya.QHBoxLayout(container)
+        layout.setContentsMargins(2, 0, 2, 0)
+        layout.setSpacing(4)
+        
+        goto_btn = pya.QPushButton("▶")
+        goto_btn.setToolTip("Go to and select this netlist cell")
+        goto_btn.setFixedSize(28, self.netlist_page_cell_button_height)
+        goto_btn.clicked.connect(
+            lambda checked=False, dev=device_name:
+                self._on_goto_netlist_cell(dev)
+        )
+        
+        layout.addWidget(goto_btn)
+        layout.addStretch(1)
+ 
+        return container
+            
+    def _on_goto_netlist_cell(self, device_name: str):
+        """Navigate to and select the netlist cell matching *device_name* in the content tree."""
+        tree = self.page_netlist.netlist_content_tw
+        root = tree.invisibleRootItem()
+    
+        for i in range(root.childCount()):
+            cell_item = root.child(i)
+            cell_name = cell_item.data(0, _CELL_NAME_ROLE)
+            if cell_name and cell_name.lower() == device_name.lower():
+                # Ensure we're on the Netlist Source page
+                self.form.pages_stack.setCurrentIndex(0)
+                nav_item = self.form.items_tw.topLevelItem(0)
+                if nav_item:
+                    self.form.items_tw.setCurrentItem(nav_item)
+    
+                # Expand, select and scroll to the cell item
+                tree.clearSelection()
+                cell_item.setExpanded(True)
+                tree.setCurrentItem(cell_item)
+                tree.scrollToItem(cell_item)
+                break        
+                
     def _set_instance_mode(self, item, mode_value: str):
         """Programmatically switch the Import Mode combo for *item* to *mode_value*."""
         tree = item.treeWidget()

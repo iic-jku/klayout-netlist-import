@@ -124,8 +124,11 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         return cell, cell_inst
 
     def import_netlist_into_layout(self):
+        cv = pya.CellView.active()
+        top_cell_name = cv.cell.name
+    
         parser = NetlistParser()
-        netlist = parser.parse(str(self.config.source_path))   # might raise NetlistError
+        netlist = parser.parse(str(self.config.source_path), implicit_top_cell_name=top_cell_name)   # might raise NetlistError
         
         m = self.config.hierarchy_mode
         if m == HierarchyMode.PRESERVE_HIERARCHY:
@@ -136,10 +139,11 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
     def _import_hierarchical(self, netlist):
         """Each subckt → its own Cell; subckt instances → CellInst."""
         
+        netlist_cell_names = {nc.name for nc in netlist.all_cells}
         cell_map = {}  # netlist cell name → pya.Cell
         
         # Pass 1: Create all cells (bottom-up so children exist before parents)
-        for nc in netlist.cells:
+        for nc in netlist.all_cells:
             cis = self.config.cell_import_setting_for(nc.name)
             mode = cis.import_mode if cis else ImportMode.NEW_CELL
             
@@ -153,19 +157,31 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                 cell_name = cis.static_cell
                 cell = self._resolve_library_cell(lib_name, cell_name)
                 cell_map[nc.name] = cell
+            elif mode == ImportMode.NETLIST_CELL:
+                # This cell is itself defined in the netlist but the user chose
+                # "Netlist Cell" — skip creating a new layout cell; it will be
+                # referenced from cell_map if another cell already created it.
+                pass
+            else:
+                raise NotImplementedError(f"Unexpected ImportMode enum case {mode}")
         
         # Pass 2: Populate each cell with its instances
         placer = GridPlacer(self.config)
         
-        for nc in netlist.cells:
+        for nc in netlist.all_cells:
             if nc.name not in cell_map:
                 continue
             parent_cell = cell_map[nc.name]
             placer.reset()
             
             for inst in nc.instances:
+                child_cell = None
+                
                 iis = self._instance_setting(nc.name, inst.name)
-                inst_mode = iis.import_mode if iis else ImportMode.TECH_CELL_MAPPING
+                inst_mode = iis.import_mode if iis else (
+                    ImportMode.NETLIST_CELL if inst.device_name in netlist_cell_names
+                    else ImportMode.TECH_CELL_MAPPING
+                )
                 
                 if inst_mode == ImportMode.IGNORE:
                     continue
@@ -173,11 +189,21 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                     child_cell = self._resolve_tech_mapped_cell(inst.device_name, inst.parameters)
                 elif inst_mode == ImportMode.EXTERNAL_STATIC_CELL:
                     child_cell = self._resolve_library_cell(iis.static_library, iis.static_cell)
-                else:
-                    # Subcircuit instance → reference the child cell
+                elif inst_mode == ImportMode.NETLIST_CELL: # Subcircuit instance → reference the child cell
                     child_cell = cell_map.get(inst.device_name)
+                    if child_cell is None:
+                        if Debugging.DEBUG:
+                            debug(f"NetlistImporter._import_hierarchical:   → NETLIST_CELL: '{inst.device_name}' not in cell_map, skipping")
+                        continue
+                elif inst_mode == ImportMode.NEW_CELL:
+                    # Shouldn't normally appear at instance level, treat like netlist cell
+                    child_cell = cell_map.get(inst.device_name)
+                else:
+                    raise NotImplementedError(f"Unexpected ImportMode enum case {inst_mode}")
                 
                 if child_cell is None:
+                    if Debugging.DEBUG:
+                        debug(f"[NetlistImporter._import_hierarchical:   → SKIPPED (no cell resolved)")
                     continue
                 
                 # Place at next grid position
@@ -187,6 +213,8 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                     pya.DTrans(pya.DVector(pos.x, pos.y))
                 )
                 parent_cell.insert(trans)
+                if Debugging.DEBUG:
+                    debug(f"NetlistImporter._import_hierarchical:   → PLACED at ({pos.x}, {pos.y})")
                             
     def _resolve_tech_mapped_cell(self, device_name, parameters):
         """Look up device in cell_map and create/find the layout cell."""

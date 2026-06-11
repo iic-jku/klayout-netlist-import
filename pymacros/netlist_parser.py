@@ -1,6 +1,7 @@
 # MIT License
 # 
 # Copyright (c) 2025–2026 Rohan Chadhury
+# Copyright (c) 2026 Martin Jan Köhler (implicit top cell modifications)
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,8 +26,6 @@
 
 import os
 import re
-import glob
-from copy import deepcopy
 from typing import Dict, List, Optional, Set, Union
 
 # from .utils import warning
@@ -56,6 +55,14 @@ class Netlist:
         self.resistance: Dict = {}
         self.capacitance: Dict = {}
         self.layer_map: Dict = {}
+        self.implicit_top_cell: Optional[NetlistCell] = None
+
+    @property
+    def all_cells(self) -> List[NetlistCell]:
+        """Include the implicit_top_cell"""
+        if self.implicit_top_cell:
+            return self.cells + [self.implicit_top_cell]
+        return self.cells
 
 
 class NetlistCell:
@@ -104,7 +111,10 @@ class NetlistParser:
     # Public API
     # ------------------------------------------------------------------
 
-    def parse(self, filename: str, data=None) -> Netlist:
+    def parse(self, 
+              filename: str, 
+              data=None,
+              implicit_top_cell_name: Optional[str] = None) -> Netlist:
         """Parse *filename* and return a :class:`Netlist` object.
 
         Parameters
@@ -185,6 +195,7 @@ class NetlistParser:
 
             # ---- Device instance lines ----
             elif line and line[0].lower() in {"d", "x", "m", "c", "r"}:
+                in_spf = False
                 # SPF capacitance data lines (e.g. "C10_5 n1 n2 1.23e-18")
                 if re.search(r"^C.*_", line):
                     m = re.search(r"^C.*_.*\s(\S+)\s(\S+)\s(\S+)", line)
@@ -199,7 +210,7 @@ class NetlistParser:
                         self._process_spf_capacitance(
                             netlist, con1, con2, capacitance_val
                         )
-
+                    in_spf = True
                 # SPF resistance data lines (e.g. "R1_5 n1 n2 50.0")
                 elif re.search(r"^R\d+_", line):
                     m = re.search(r"^R.*?\s(\S+)\s(\S+)\s(\S+)", line)
@@ -210,9 +221,15 @@ class NetlistParser:
                         self._process_spf_resistance(
                             netlist, con1, con2, resistance_val
                         )
-
-                if in_subckt:
-                    netlist = self._instance_parse(line, netlist)
+                    in_spf = True
+                
+                if not in_spf:
+                    if in_subckt:
+                        self._instance_parse(line, netlist.version, netlist.cells[-1])
+                    elif implicit_top_cell_name:
+                        if netlist.implicit_top_cell is None:
+                            netlist.implicit_top_cell = NetlistCell(implicit_top_cell_name)
+                        self._instance_parse(line, netlist.version, netlist.implicit_top_cell)
 
             # ---- SPF *|NET annotation ----
             elif line.startswith("*|NET"):
@@ -301,6 +318,7 @@ class NetlistParser:
         path: str,
         data=None,
         key=None,
+        implicit_top_cell_name: Optional[str] = None,
     ):
         """Parse one file or a directory of netlist files.
 
@@ -345,27 +363,31 @@ class NetlistParser:
         last_filename = path
         for filename in netlist_files:
             last_filename = filename
-            netlist = self.parse(filename, data)
+            netlist = self.parse(filename, data, implicit_top_cell_name)
+
+            all_cells = list(netlist.cells)
+            if implicit_top_cell_name and netlist.implicit_top_cell:
+                all_cells.append(netlist.implicit_top_cell)
 
             if not self.internal:
-                cell_names.update(c.name for c in netlist.cells)
-                for cell in netlist.cells:
+                cell_names.update(c.name for c in all_cells)
+                for cell in all_cells:
                     for inst in cell.instances:
                         if inst.device_name:
                             device_names.add(inst.device_name)
 
             if data == "cells":
                 assert isinstance(output, set)
-                output.update(c.name for c in netlist.cells)
+                output.update(c.name for c in all_cells)
 
             elif data == "ports":
                 assert isinstance(output, dict)
-                for cell in netlist.cells:
+                for cell in all_cells:
                     output.setdefault(cell.name, []).extend(cell.ports)
 
             elif data == "devices":
                 assert isinstance(output, dict)
-                for cell in netlist.cells:
+                for cell in all_cells:
                     output[cell.name] = set()
                     for inst in cell.instances:
                         if inst.device_name:
@@ -373,7 +395,7 @@ class NetlistParser:
 
             elif data == "device-params":
                 assert isinstance(output, dict)
-                for cell in netlist.cells:
+                for cell in all_cells:
                     output[cell.name] = {}
                     for inst in cell.instances:
                         if inst.device_name:
@@ -387,7 +409,7 @@ class NetlistParser:
 
             elif data == "resistors":
                 assert isinstance(output, dict)
-                for cell in netlist.cells:
+                for cell in all_cells:
                     output[cell.name] = []
                     for inst in cell.instances:
                         if inst.code == "r":
@@ -397,7 +419,7 @@ class NetlistParser:
 
             elif data == "capacitors":
                 assert isinstance(output, dict)
-                for cell in netlist.cells:
+                for cell in all_cells:
                     output[cell.name] = []
                     for inst in cell.instances:
                         if inst.code == "c":
@@ -405,12 +427,12 @@ class NetlistParser:
 
             elif data == "resistance":
                 assert isinstance(output, dict)
-                for cell in netlist.cells:
+                for cell in all_cells:
                     output[cell.name] = netlist.resistance
 
             elif data == "capacitance":
                 assert isinstance(output, dict)
-                for cell in netlist.cells:
+                for cell in all_cells:
                     output[cell.name] = netlist.capacitance
 
             elif data is None:
@@ -419,6 +441,8 @@ class NetlistParser:
         # Filter internal cells when self.internal is False
         if not self.internal:
             internal_cells = cell_names.intersection(device_names)
+            if implicit_top_cell_name:
+                internal_cells.discard(implicit_top_cell_name)
             if internal_cells:
                 warning(
                     f"Warning: Device(s) {', '.join(sorted(internal_cells))} "
@@ -448,13 +472,13 @@ class NetlistParser:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _instance_parse(self, line: str, netlist: Netlist) -> Netlist:
-        """Parse one device-instance line and append to the current cell."""
+    def _instance_parse(self, line: str, netlist_version: str, cell: NetlistCell):
+        """Parse one device-instance line and append to the given cell."""
         tokens = line.split()
         instance = DeviceInstance(tokens[0])
 
         # CDL capacitors, diodes, resistors: device token is at position 3 (or 4)
-        if netlist.version == "cdl" and instance.code in {"c", "r", "d"}:
+        if netlist_version == "cdl" and instance.code in {"c", "r", "d"}:
             i = 3
             if len(tokens) > 3 and tokens[i].startswith("$SUB="):
                 i += 1
@@ -464,7 +488,7 @@ class NetlistParser:
             i = 2  # safe fallback
             for idx in range(len(tokens) - 1, 1, -1):
                 # Spectre: strip "capacitor _="/"resistor _=" prefix
-                if netlist.version == "scs" and instance.code in {"c", "r"}:
+                if netlist_version == "scs" and instance.code in {"c", "r"}:
                     if tokens[idx - 1] in {"capacitor", "resistor"}:
                         tokens[idx] = tokens[idx].split("=", 1)[-1]
                         del tokens[idx - 1]
@@ -488,15 +512,13 @@ class NetlistParser:
             tok = tokens[i]
             if instance.code in {"c", "r"} and re.match(r"^\d+(\.\S*)?", tok):
                 instance.number = tok
-            elif tok != "vsource" and "=" not in tok and tok not in netlist.cells[-1].substitute:
-                if netlist.version == "cdl" and "$" in tok and "[" in tok:
+            elif tok != "vsource" and "=" not in tok and tok not in cell.substitute:
+                if netlist_version == "cdl" and "$" in tok and "[" in tok:
                     instance.device_name = tok.split("[", 1)[1].rstrip("]").lower()
                 else:
                     instance.device_name = tok.lower()
 
-        if netlist.cells:
-            netlist.cells[-1].instances.append(instance)
-        return netlist
+        cell.instances.append(instance)
 
     # ------------------------------------------------------------------
     # SPF parasitic data helpers (ported from original)

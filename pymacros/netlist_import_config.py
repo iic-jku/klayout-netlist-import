@@ -56,6 +56,7 @@ class HierarchyMode(DualStrEnum):
 class ImportMode(DualStrEnum):
     IGNORE = 'ignore', 'Ignore'
     NEW_CELL = 'new_cell', 'New Cell'
+    NETLIST_CELL = 'netlist_cell', 'Netlist Cell'
     TECH_CELL_MAPPING = 'tech_cell_mapping', 'Tech Cell Mapping'
     EXTERNAL_STATIC_CELL = 'external_static_cell', 'External Static Cell'
 
