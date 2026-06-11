@@ -132,11 +132,11 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         
         m = self.config.hierarchy_mode
         if m == HierarchyMode.PRESERVE_HIERARCHY:
-            self._import_hierarchical(netlist)
+            self._import_hierarchical(netlist, cv.cell)
         # elif m == HierarchyMode.FLATTEN:
         #    self._import_flattened(netlist)
     
-    def _import_hierarchical(self, netlist):
+    def _import_hierarchical(self, netlist, current_top_cell):
         """Each subckt → its own Cell; subckt instances → CellInst."""
         
         netlist_cell_names = {nc.name for nc in netlist.all_cells}
@@ -150,7 +150,14 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             if mode == ImportMode.IGNORE:
                 continue
             elif mode == ImportMode.NEW_CELL:
-                cell = self.layout.create_cell(nc.name)
+                # Reuse existing cell if it matches the current top cell
+                existing = self.layout.cell(nc.name)
+                if existing is not None and existing.cell_index() == current_top_cell.cell_index():
+                    cell = existing
+                    if Debugging.DEBUG:
+                        debug(f"NetlistImporter._import_hierarchical: Reusing existing top cell '{nc.name}'")
+                else:
+                    cell = self.layout.create_cell(nc.name)
                 cell_map[nc.name] = cell
             elif mode == ImportMode.EXTERNAL_STATIC_CELL:
                 lib_name = cis.static_library
