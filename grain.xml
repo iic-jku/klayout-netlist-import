@@ -3,7 +3,7 @@
     <name>NetlistImportPlugin</name>
     <token/>
     <hidden>false</hidden>
-    <version>0.2</version>
+    <version>0.3</version>
     <api-version/>
     <title>Netlist Import</title>
     <doc>Import netlists into Layout</doc>
