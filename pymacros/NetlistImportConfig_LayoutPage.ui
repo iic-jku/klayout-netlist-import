@@ -204,12 +204,12 @@
           <item>
            <widget class="QLabel" name="label_15">
             <property name="text">
-             <string>Spacing:</string>
+             <string>Pitch:</string>
             </property>
            </widget>
           </item>
           <item>
-           <widget class="QDoubleSpinBox" name="spacing_sb"/>
+           <widget class="QDoubleSpinBox" name="pitch_sb"/>
           </item>
           <item>
            <widget class="QLabel" name="label">
