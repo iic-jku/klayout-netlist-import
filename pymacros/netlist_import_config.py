@@ -50,7 +50,7 @@ class NetlistFileFormat(DualStrEnum):
 
 class HierarchyMode(DualStrEnum):
     PRESERVE_HIERARCHY = 'preserve_hierarchy', 'Preserve Hierarchy'
-    FLATTEN = 'flatten_hierarchy', 'Flatten Hierarchy'
+    # FLATTEN = 'flatten_hierarchy', 'Flatten Hierarchy'
 
 
 class ImportMode(DualStrEnum):
