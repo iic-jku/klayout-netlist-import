@@ -65,6 +65,10 @@ class TechCellMappingPage(PageBase):
         self._cell_map_cell_combos = {}
         self._auto_switching_cell_type = False
     
+        # Observers notified (with no arguments) when the cell map changes.
+        # Register via:  page.on_cell_map_changed += [my_callable]
+        self.on_cell_map_changed: List[Callable[[], None]] = []
+        
         self._setup()
     
     def widget(self) -> pya.QWidget:
@@ -104,6 +108,8 @@ class TechCellMappingPage(PageBase):
                     self._widget.cell_map_tw.setItem(row, col, self._make_data_item(value))
                 
         self._widget.cell_map_tw.blockSignals(False)
+    
+        self._notify_cell_map_changed()
     
     def select_row_for_device(self, device_name: str):
         # Select the matching row in the cell map table
@@ -164,11 +170,12 @@ class TechCellMappingPage(PageBase):
     
     def add_row(self):
         # Add a new row with device_name pre-filled in col 0
+        device_name = 'SG13_LV_NMOS'
         table = self._widget.cell_map_tw
         row = table.rowCount
         table.blockSignals(True)
         table.insertRow(row)
-        table.setItem(row, 0, self._make_data_item('SG13_LV_NMOS'))
+        table.setItem(row, 0, self._make_data_item(device_name))
         self._set_cell_type_widget(row, CellType.PCELL.value)
         self._set_cell_map_library_widget(row, 'SG13_dev')
         self._set_cell_map_cell_widget(row, device_name.lower(), 'SG13_dev')
@@ -177,6 +184,8 @@ class TechCellMappingPage(PageBase):
         table.blockSignals(False)
         table.selectRow(row)
         table.scrollToItem(table.item(row, 0))
+       
+        self._notify_cell_map_changed()
        
     def _parse_parameter_mapping(self, text: str) -> ParameterMapping:
         entries = {}
@@ -241,6 +250,8 @@ class TechCellMappingPage(PageBase):
             table.setItem(row, 5, self._make_placeholder_item('@m'))
             table.blockSignals(False)
             table.selectRow(row)
+    
+            self._notify_cell_map_changed()
         except Exception as e:
             traceback.print_exc()
     
@@ -258,6 +269,8 @@ class TechCellMappingPage(PageBase):
             # Re-key remaining combos/params after row removal
             self._reindex_cell_type_combos()
             self._reindex_stashed_params()        
+    
+            self._notify_cell_map_changed()
         except Exception as e:
             traceback.print_exc()
     
@@ -366,6 +379,7 @@ class TechCellMappingPage(PageBase):
             table.setItem(row, 5, self._make_data_item(e.multiplier))
     
         table.blockSignals(False)
+        self._notify_cell_map_changed()
 
     def _reindex_cell_type_combos(self):
         """Rebuild the row→combo dict after rows are deleted."""
@@ -497,6 +511,8 @@ class TechCellMappingPage(PageBase):
                     break
         finally:
             self._auto_switching_cell_type = False
+            
+        self._notify_cell_map_changed()
         
     def _validate_cell_map_row(self, row: int):
         """Set red background on cell map library/cell combos if their value is invalid."""
@@ -613,4 +629,23 @@ class TechCellMappingPage(PageBase):
                 item.setData(_PLACEHOLDER_ROLE, False)
         except Exception as e:
             traceback.print_exc()
+            
+        self._notify_cell_map_changed()
         
+    def _notify_cell_map_changed(self):
+        """Call all registered on_cell_map_changed observers."""
+        for cb in self.on_cell_map_changed:
+            try:
+                cb()
+            except Exception:
+                traceback.print_exc()
+                
+    def _reindex_stashed_params(self):
+        """Rebuild row keys in _stashed_params after row deletion."""
+        if not hasattr(self, '_stashed_params'):
+            return
+        # The stashed entries with old row keys are now invalid;
+        # we don't have a reliable way to remap, so just clear.
+        # (Stash is only a convenience for undo within same session.)
+        self._stashed_params.clear()
+                

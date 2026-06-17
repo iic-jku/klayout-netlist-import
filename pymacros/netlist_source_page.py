@@ -708,7 +708,7 @@ class NetlistSourcePage(PageBase):
             cell_cb.blockSignals(True)
             cell_cb.clear()
             cell_cb.addItem("")
-            for cname in self._get_library_cell_names(lib_name):
+            for cname in self.library_helper.get_library_cell_names(lib_name):
                 cell_cb.addItem(cname)
             idx = cell_cb.findText(prev_cell)
             if idx >= 0:
@@ -719,14 +719,14 @@ class NetlistSourcePage(PageBase):
  
         lib_cb.blockSignals(True)
         lib_cb.addItem("")
-        for name in self._get_library_names():
+        for name in self.library_helper.get_library_names():
             lib_cb.addItem(name)
         idx = lib_cb.findText(saved_lib)
         if idx >= 0:
             lib_cb.setCurrentIndex(idx)
         else:
             lib_cb.setEditText(saved_lib)
-        lib_cb.addItem("")
+        
         lib_cb.blockSignals(False)
  
         cell_cb.blockSignals(True)
@@ -800,3 +800,33 @@ class NetlistSourcePage(PageBase):
                 tree.setCurrentItem(cell_item)
                 tree.scrollToItem(cell_item)
                 break
+
+    def refresh_tech_mapping_widgets(self):
+        """Re-render col-5 for all TECH_CELL_MAPPING instance rows.
+        
+        Called when the tech cell map changes so stale match/no-match
+        indicators are updated without rebuilding the whole tree.
+        """
+        try:
+            cell_map = self._get_active_cell_map_fn()
+        except Exception:
+            traceback.print_exc()
+            return
+
+        tree = self._widget.netlist_content_tw
+        root = tree.invisibleRootItem()
+
+        for i in range(root.childCount()):
+            cell_item = root.child(i)
+            for j in range(cell_item.childCount()):
+                inst_item = cell_item.child(j)
+                cb = tree.itemWidget(inst_item, 4)
+                if cb is None:
+                    continue
+                mode = cb.itemData(cb.currentIndex)
+                if mode != ImportMode.TECH_CELL_MAPPING.value:
+                    continue
+                device_name = inst_item.text(1)  # col 1 holds the device name
+                self._refresh_import_settings_widget(
+                    tree, inst_item, device_name, mode, cell_map
+                )

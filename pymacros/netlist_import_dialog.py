@@ -96,12 +96,16 @@ class NetlistImportDialog(pya.QDialog):
         
         # Load each page and insert as a page
         self.page_cell_map = TechCellMappingPage(self.tech, library_helper)
+        
         self.page_netlist = NetlistSourcePage(
             library_helper=library_helper,
             on_goto_tech_cell_mapping=self._on_goto_tech_cell_mapping,
             on_add_tech_cell_mapping=self._on_add_tech_cell_mapping,
             get_active_cell_map_fn=self.page_cell_map.config_from_ui,
         )
+        
+        self.page_cell_map.on_cell_map_changed += [self.page_netlist.refresh_tech_mapping_widgets]
+        
         self.page_layout = LayoutPage()
         
         stack.insertWidget(0, self.page_netlist.widget())
@@ -370,15 +374,6 @@ class NetlistImportDialog(pya.QDialog):
         except Exception as e:
             qmessagebox_critical('Error', "Failed to load runset", f"Caught exception: <pre>{e}</pre>")
             traceback.print_exc()
-    
-    def _reindex_stashed_params(self):
-        """Rebuild row keys in _stashed_params after row deletion."""
-        if not hasattr(self, '_stashed_params'):
-            return
-        # The stashed entries with old row keys are now invalid;
-        # we don't have a reliable way to remap, so just clear.
-        # (Stash is only a convenience for undo within same session.)
-        self._stashed_params.clear()
         
 
 #--------------------------------------------------------------------------------
