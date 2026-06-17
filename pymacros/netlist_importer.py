@@ -79,7 +79,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                                          lay_cell: pya.Cell,
                                          position: pya.DVector) -> Optional[Tuple[pya.Cell, pya.DCellInstArray]]:
         """Place an instance using the tech cell mapping (cell_map)."""
-        cell_map = self.config.cell_map.map_entry_for_device(inst.device_name)
+        cell_map = self.config.tech_cell_map.map_entry_for_device(inst.device_name)
         if cell_map is None:
             print(f"  Warning: no tech cell mapping for device '{inst.device_name}' "
                   f"(instance '{inst.name}'), skipping.")
@@ -128,9 +128,10 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         top_cell_name = cv.cell.name
     
         parser = NetlistParser()
-        netlist = parser.parse(str(self.config.source_path), implicit_top_cell_name=top_cell_name)   # might raise NetlistError
+        netlist = parser.parse(str(self.config.netlist_source_config.source_path), 
+                               implicit_top_cell_name=top_cell_name)   # might raise NetlistError
         
-        m = self.config.hierarchy_mode
+        m = self.config.netlist_source_config.hierarchy_mode
         if m == HierarchyMode.PRESERVE_HIERARCHY:
             self._import_hierarchical(netlist, cv.cell)
         # elif m == HierarchyMode.FLATTEN:
@@ -223,9 +224,9 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                 if Debugging.DEBUG:
                     debug(f"NetlistImporter._import_hierarchical:   → PLACED at ({pos.x}, {pos.y})")
                             
-    def _resolve_tech_mapped_cell(self, device_name, parameters):
+    def _resolve_tech_mapped_cell(self, device_name: str, parameters):
         """Look up device in cell_map and create/find the layout cell."""
-        entry = self.config.cell_map.map_entry_for_device(device_name)
+        entry = self.config.tech_cell_map.map_entry_for_device(device_name)
         if entry is None:
             return None
         
@@ -245,7 +246,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             )
         return cell
     
-    def _resolve_library_cell(self, lib_name, cell_name):
+    def _resolve_library_cell(self, lib_name: str, cell_name: str) -> str:
         """Resolve a static cell from a library."""
         if not lib_name or not cell_name:
             return None
@@ -266,7 +267,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                 result[pcell_key] = self._parse_numeric(expr)
         return result
     
-    def _parse_numeric(self, value: str):
+    def _parse_numeric(self, value: str) -> float:
         """Convert string to float, handling SPICE suffixes."""
         suffixes = {
             'T': 1e12, 'G': 1e9, 'MEG': 1e6, 'K': 1e3,
@@ -285,13 +286,6 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         except ValueError:
             return value
     
-    def _instance_setting(self, cell_name, instance_name):
-        """Look up the InstanceImportSetting for a given cell+instance."""
-        cis = self.config.cell_import_setting_for(cell_name)
-        if cis:
-            return cis.instance_setting_for(instance_name)
-        return None        
-
 
 if __name__ == "__main__":
     test_path = '/Users/martin/Source/ihp_ref_layouts/ihp-sg13g2-ams-chip-template/macros/inverter/netlist/schematic/inverter_magic.spice'
