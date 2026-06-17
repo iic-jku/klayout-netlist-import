@@ -185,7 +185,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             for inst in nc.instances:
                 child_cell = None
                 
-                iis = self._instance_setting(nc.name, inst.name)
+                iis = self.config.instance_setting(nc.name, inst.name)
                 inst_mode = iis.import_mode if iis else (
                     ImportMode.NETLIST_CELL if inst.device_name in netlist_cell_names
                     else ImportMode.TECH_CELL_MAPPING
