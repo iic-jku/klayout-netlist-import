@@ -71,6 +71,10 @@ class NetlistSourcePage(PageBase):
         # Public: the FileSelectorWidget created during setup
         self.source_path_w: FileSelectorWidget = None
         
+        # Cached set of netlist cell names from the last successful parse,
+        # used when refreshing individual col-5 widgets without a full tree rebuild.
+        self._current_netlist_cell_names: Set[str] = set()
+ 
         self._setup()
         
     def widget(self) -> pya.QWidget:
@@ -325,6 +329,7 @@ class NetlistSourcePage(PageBase):
         tree.setHeaderHidden(False)     # columns defined in the .ui are kept
         
         netlist_cell_names = {c.name for c in netlist.all_cells}
+        self._current_netlist_cell_names = netlist_cell_names
         
         for cell in netlist.all_cells:
             cis = settings_map.get(cell.name)
@@ -359,7 +364,8 @@ class NetlistSourcePage(PageBase):
         static_library: str = '',
         static_cell: str = '',
         instance_settings: List[InstanceImportSetting] = None,
-        netlist_cell_names: Set[str] = None,
+        *, # everything after here is keyword-only
+        netlist_cell_names: Set[str],
     ) -> pya.QTreeWidgetItem:
         """Create one child row for *cell* under *parent* and return it.
      
@@ -461,7 +467,8 @@ class NetlistSourcePage(PageBase):
         static_library: str = '',
         static_cell: str = '',
         cell_map=None,
-        netlist_cell_names: Set[str] = None,
+        *, # everything after here is keyword-only
+        netlist_cell_names: Set[str],
     ) -> pya.QTreeWidgetItem:
         """Create a child row for a device instance under a cell item.
     
@@ -513,7 +520,8 @@ class NetlistSourcePage(PageBase):
         item.setData(0, _STATIC_CELL_ROLE,    static_cell    or '')
  
         # Col 5 – Import Settings widget (mode-dependent)
-        self._refresh_import_settings_widget(tree, item, inst.device_name or '', effective_mode, cell_map)
+        self._refresh_import_settings_widget(tree, item, inst.device_name or '', effective_mode, cell_map,
+                                             netlist_cell_names=netlist_cell_names)
  
         # Rebuild col-5 widget whenever the mode combo changes
         cb.currentIndexChanged.connect(
@@ -531,16 +539,24 @@ class NetlistSourcePage(PageBase):
         mode = cb.itemData(cb.currentIndex)
         
         def _refresh():
-            self._refresh_import_settings_widget(tree, item, device_name, mode, cell_map)
+            try:
+                live_cell_map = self._get_active_cell_map_fn()
+            except Exception:
+                traceback.print_exc()
+                live_cell_map = cell_map  # fall back to snapshot
+            self._refresh_import_settings_widget(tree, item, device_name, mode, live_cell_map,
+                                                 netlist_cell_names=self._current_netlist_cell_names)
         
         EventLoop.defer(_refresh)
- 
-    def _refresh_import_settings_widget(self, tree, item, device_name, mode, cell_map):
+    
+    def _refresh_import_settings_widget(self, tree, item, device_name, mode, cell_map,
+                                        netlist_cell_names: Set[str]):
         """Build and install the correct Import Settings widget in col 5."""
         
         old_widget = self._import_settings_widgets.get(id(item))
         
-        w = self._make_import_settings_widget(item, device_name, mode, cell_map)
+        w = self._make_import_settings_widget(item, device_name, mode, cell_map,
+                                              netlist_cell_names=netlist_cell_names)
         if w is None:
             # Install an empty transparent widget so the column stays blank
             w = pya.QWidget()
@@ -548,12 +564,16 @@ class NetlistSourcePage(PageBase):
         self._import_settings_widgets[id(item)] = w
         tree.setItemWidget(item, 5, w)
  
-    def _make_import_settings_widget(self, item, device_name, mode, cell_map):
+    def _make_import_settings_widget(self, item, device_name, mode, cell_map,
+                                     netlist_cell_names: Set[str]):
         """Return the appropriate widget for col 5 depending on *mode*.
  
         TECH_CELL_MAPPING
             • No match in cell_map → red warning label + [Ignore] + [Add →] buttons
             • Match found          → lib/cell label + [→] navigate button
+        NETLIST_CELL
+            • device_name not in netlist_cell_names → red warning label + [Ignore] button
+            • device_name found                     → [→] navigate button
         EXTERNAL_STATIC_CELL
             • Library: [QLineEdit]  Cell: [QLineEdit]
         IGNORE / other
@@ -564,7 +584,7 @@ class NetlistSourcePage(PageBase):
         elif mode == ImportMode.EXTERNAL_STATIC_CELL.value:
             return self._make_static_cell_widget(item, instance=True)
         elif mode == ImportMode.NETLIST_CELL.value:
-            return self._make_netlist_cell_widget(item, device_name)
+            return self._make_netlist_cell_widget(item, device_name, netlist_cell_names)
         else:
             return None
  
@@ -771,22 +791,59 @@ class NetlistSourcePage(PageBase):
  
         return container
  
-    def _make_netlist_cell_widget(self, item, device_name: str):
+    def _make_netlist_cell_widget(self, 
+                                  item, 
+                                  device_name: str,
+                                  netlist_cell_names: Set[str]):
+        """Widget for NETLIST_CELL mode in col 5.
+        
+        When *device_name* is not found in *netlist_cell_names* a red warning
+        with an [Ignore] button is shown, mirroring the TECH_CELL_MAPPING
+        no-match case.  When the cell is found a plain [▶] navigate button is
+        shown instead.
+        """
+        cell_found = (
+            bool(device_name)
+            and netlist_cell_names is not None
+            and device_name in netlist_cell_names
+        )
+    
         container = pya.QWidget()
         layout    = pya.QHBoxLayout(container)
         layout.setContentsMargins(2, 0, 2, 0)
         layout.setSpacing(4)
  
-        goto_btn = pya.QPushButton("▶")
-        goto_btn.setToolTip("Go to and select this netlist cell")
-        goto_btn.setFixedSize(28, self.cell_button_height)
-        goto_btn.clicked.connect(
-            lambda checked=False, dev=device_name:
-                self._on_goto_netlist_cell(dev)
-        )
+        if not cell_found:
+            # ── No matching netlist cell: red warning ───────────────────────
+            warn_lbl = pya.QLabel("⚠ Netlist cell not found")
+            warn_lbl.setStyleSheet("color: #c0392b; font-weight: bold;")
+            warn_lbl.setToolTip(
+                f"No subckt named '{device_name}' was found in the netlist.\n"
+                f"This instance will be skipped during import."
+            )
+
+            ignore_btn = pya.QPushButton("Ignore")
+            ignore_btn.setToolTip("Switch this instance to Ignore mode")
+            ignore_btn.setFixedHeight(self.cell_button_height)
+            ignore_btn.clicked.connect(
+                lambda checked=False, it=item:
+                    self._set_instance_mode(it, ImportMode.IGNORE.value)
+            )
+
+            layout.addWidget(warn_lbl)
+            layout.addWidget(ignore_btn)
+            layout.addStretch(1)
+        else:
+            goto_btn = pya.QPushButton("▶")
+            goto_btn.setToolTip("Go to and select this netlist cell")
+            goto_btn.setFixedSize(28, self.cell_button_height)
+            goto_btn.clicked.connect(
+                lambda checked=False, dev=device_name:
+                    self._on_goto_netlist_cell(dev)
+            )
  
-        layout.addWidget(goto_btn)
-        layout.addStretch(1)
+            layout.addWidget(goto_btn)
+            layout.addStretch(1)
  
         return container
  
@@ -799,6 +856,17 @@ class NetlistSourcePage(PageBase):
             if cell_item.data(0, _CELL_NAME_ROLE) == device_name:
                 tree.setCurrentItem(cell_item)
                 tree.scrollToItem(cell_item)
+                break
+
+    def _set_instance_mode(self, item: pya.QTreeWidgetItem, mode_value: str):
+        """Programmatically change the Import Mode combo for an instance row."""
+        tree = self._widget.netlist_content_tw
+        cb = tree.itemWidget(item, 4)
+        if cb is None:
+            return
+        for i in range(cb.count):
+            if cb.itemData(i) == mode_value:
+                cb.setCurrentIndex(i)
                 break
 
     def refresh_tech_mapping_widgets(self):
@@ -828,5 +896,6 @@ class NetlistSourcePage(PageBase):
                     continue
                 device_name = inst_item.text(1)  # col 1 holds the device name
                 self._refresh_import_settings_widget(
-                    tree, inst_item, device_name, mode, cell_map
+                    tree, inst_item, device_name, mode, cell_map,
+                    netlist_cell_names=self._current_netlist_cell_names,
                 )
