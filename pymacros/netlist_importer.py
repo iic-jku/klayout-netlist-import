@@ -191,10 +191,12 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                     else ImportMode.TECH_CELL_MAPPING
                 )
                 
+                multiplier = 1
+                
                 if inst_mode == ImportMode.IGNORE:
                     continue
                 elif inst_mode == ImportMode.TECH_CELL_MAPPING:
-                    child_cell = self._resolve_tech_mapped_cell(inst.device_name, inst.parameters)
+                    child_cell, multiplier = self._resolve_tech_mapped_cell(inst.device_name, inst.parameters)
                 elif inst_mode == ImportMode.EXTERNAL_STATIC_CELL:
                     child_cell = self._resolve_library_cell(iis.static_library, iis.static_cell)
                 elif inst_mode == ImportMode.NETLIST_CELL: # Subcircuit instance → reference the child cell
@@ -214,17 +216,23 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                         debug(f"[NetlistImporter._import_hierarchical:   → SKIPPED (no cell resolved)")
                     continue
                 
-                # Place at next grid position
-                pos = placer.next_position()
-                trans = pya.DCellInstArray(
-                    child_cell.cell_index(),
-                    pya.DTrans(pya.DVector(pos.x, pos.y))
-                )
-                parent_cell.insert(trans)
-                if Debugging.DEBUG:
-                    debug(f"NetlistImporter._import_hierarchical:   → PLACED at ({pos.x}, {pos.y})")
+                for i in range(multiplier):
+                    instance_name = inst.name
+                    if multiplier > 1:
+                         instance_name += f"${i+1}"
+                
+                    # Place at next grid position
+                    pos = placer.next_position()
+                    inst_array = pya.DCellInstArray(
+                        child_cell.cell_index(),
+                        pya.DTrans(pya.DVector(pos.x, pos.y))
+                    )
+                    
+                    parent_cell.insert(inst_array)
+                    if Debugging.DEBUG:
+                        debug(f"NetlistImporter._import_hierarchical:   → PLACED {instance_name} at ({pos.x}, {pos.y})")
                             
-    def _resolve_tech_mapped_cell(self, device_name: str, parameters):
+    def _resolve_tech_mapped_cell(self, device_name: str, parameters) -> Tuple[pya.Cell, int]:
         """Look up device in cell_map and create/find the layout cell."""
         entry = self.config.tech_cell_map.map_entry_for_device(device_name)
         if entry is None:
@@ -234,17 +242,16 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         if lib is None:
             return None
         
+        multiplier = 1
+        
         if entry.layout_cell_type == CellType.PCELL:
             # Resolve parameter mapping: netlist params → PCell params
-            pcell_params = self._map_parameters(entry, parameters)
-            cell = self.layout.create_cell(
-                entry.layout_cell, entry.layout_cell_library, pcell_params
-            )
+            pcell_params, multiplier = self._map_parameters(entry, parameters)
+            cell = self.layout.create_cell(entry.layout_cell, entry.layout_cell_library, pcell_params)
         else:
-            cell = self.layout.create_cell(
-                entry.layout_cell, entry.layout_cell_library
-            )
-        return cell
+            cell = self.layout.create_cell(entry.layout_cell, entry.layout_cell_library)
+            
+        return cell, multiplier
     
     def _resolve_library_cell(self, lib_name: str, cell_name: str) -> str:
         """Resolve a static cell from a library."""
@@ -252,7 +259,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             return None
         return self.layout.create_cell(cell_name, lib_name)
     
-    def _map_parameters(self, entry: CellMapEntry, netlist_params: dict) -> dict:
+    def _map_parameters(self, entry: CellMapEntry, netlist_params: Dict) -> Tuple[Dict, int]:
         """Apply parameter_mapping to translate netlist params → PCell params.
         
         Mapping format: pcell_param=@netlist_param  or  pcell_param=literal
@@ -261,11 +268,22 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         for pcell_key, expr in entry.parameter_mapping.entries.items():
             if expr.startswith('@'):
                 netlist_key = expr[1:]
-                if netlist_key in netlist_params:
-                    result[pcell_key] = self._parse_numeric(netlist_params[netlist_key])
+                param = netlist_params.get(netlist_key, None)
+                if param:
+                    result[pcell_key] = self._parse_numeric(param)
             else:
                 result[pcell_key] = self._parse_numeric(expr)
-        return result
+               
+        multiplier = 1 
+        if entry.multiplier:
+            mult_key = entry.multiplier
+            if mult_key.startswith('@'):
+                mult_key = mult_key[1:]
+            mult_param = netlist_params.get(mult_key, None)
+            if mult_param is not None and mult_param != '':
+                multiplier = int(mult_param)
+        
+        return result, multiplier
     
     def _parse_numeric(self, value: str) -> float:
         """Convert string to float, handling SPICE suffixes."""
