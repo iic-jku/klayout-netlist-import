@@ -300,7 +300,9 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                 except ValueError:
                     pass
         try:
-            return float(value)
+            f = float(value)
+            i = int(value)
+            return i if i == f else f
         except ValueError:
             return value
     
