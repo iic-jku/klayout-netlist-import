@@ -72,7 +72,7 @@
            <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
           </property>
           <property name="columnCount">
-           <number>5</number>
+           <number>6</number>
           </property>
           <column>
            <property name="text">
@@ -97,6 +97,11 @@
           <column>
            <property name="text">
             <string>Parameters</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Multiplier</string>
            </property>
           </column>
          </widget>

@@ -38,11 +38,11 @@ class GridPlacer:
     """Places cells on a grid, wrapping columns per config."""
     
     def __init__(self, config: NetlistImportConfig):
-        self.origin_x = config.origin_x
-        self.origin_y = config.origin_y
-        self.pitch = config.pitch
-        self.limit_columns = config.limit_columns
-        self.max_columns = config.max_columns
+        self.origin_x = config.layout_config.origin_x
+        self.origin_y = config.layout_config.origin_y
+        self.pitch = config.layout_config.pitch
+        self.limit_columns = config.layout_config.limit_columns
+        self.max_columns = config.layout_config.max_columns
         self.col = 0
         self.row = 0
     

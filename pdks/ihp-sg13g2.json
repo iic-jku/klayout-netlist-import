@@ -13,7 +13,8 @@
                         "shape": "@shape",
                         "padtype": "@padtype"
                     }
-                }
+                },
+                "multiplier": ""
             },
             {
                 "netlist_device": "cap_cmim",
@@ -23,10 +24,10 @@
                 "parameter_mapping": {
                     "entries": {
                         "w": "@w",
-                        "l": "@l",
-                        "m": "@m"
+                        "l": "@l"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "cap_rfcmim",
@@ -37,10 +38,10 @@
                     "entries": {
                         "w": "@w",
                         "l": "@l",
-                        "wfeed": "@wfeed",
-                        "m": "@m"
+                        "wfeed": "@wfeed"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "dantenna",
@@ -52,7 +53,8 @@
                         "w": "@w",
                         "l": "@l"
                     }
-                }
+                },
+                "multiplier": ""
             },
             {
                 "netlist_device": "diodevdd_2kv",
@@ -61,10 +63,10 @@
                 "layout_cell_type": "pcell",
                 "parameter_mapping": {
                     "entries": {
-                        "model": "diodevdd_2kv",
-                        "m": "@m"
+                        "model": "diodevdd_2kv"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "diodevss_2kv",
@@ -73,10 +75,10 @@
                 "layout_cell_type": "pcell",
                 "parameter_mapping": {
                     "entries": {
-                        "model": "diodevss_2kv",
-                        "m": "@m"
+                        "model": "diodevss_2kv"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "diodevdd_4kv",
@@ -85,10 +87,10 @@
                 "layout_cell_type": "pcell",
                 "parameter_mapping": {
                     "entries": {
-                        "model": "diodevdd_4kv",
-                        "m": "@m"
+                        "model": "diodevdd_4kv"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "diodevss_4kv",
@@ -97,10 +99,10 @@
                 "layout_cell_type": "pcell",
                 "parameter_mapping": {
                     "entries": {
-                        "model": "diodevss_4kv",
-                        "m": "@m"
+                        "model": "diodevss_4kv"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "dpantenna",
@@ -112,7 +114,8 @@
                         "w": "@w",
                         "l": "@l"
                     }
-                }
+                },
+                "multiplier": ""
             },
             {
                 "netlist_device": "inductor",
@@ -124,10 +127,10 @@
                         "w": "@w",
                         "s": "@s",
                         "d": "@d",
-                        "nr_r": "@nr_r",
-                        "m": "@m"
+                        "nr_r": "@nr_r"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "inductor3",
@@ -139,10 +142,10 @@
                         "w": "@w",
                         "s": "@s",
                         "d": "@d",
-                        "nr_r": "@nr_r",
-                        "m": "@m"
+                        "nr_r": "@nr_r"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "isolbox",
@@ -154,7 +157,8 @@
                         "w": "@w",
                         "l": "@l"
                     }
-                }
+                },
+                "multiplier": ""
             },
             {
                 "netlist_device": "nmoscl_2",
@@ -163,10 +167,10 @@
                 "layout_cell_type": "pcell",
                 "parameter_mapping": {
                     "entries": {
-                        "model": "nmoscl_2",
-                        "m": "@m"
+                        "model": "nmoscl_2"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "nmoscl_4",
@@ -175,10 +179,10 @@
                 "layout_cell_type": "pcell",
                 "parameter_mapping": {
                     "entries": {
-                        "model": "nmoscl_4",
-                        "m": "@m"
+                        "model": "nmoscl_4"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "npn13G2",
@@ -191,7 +195,8 @@
                         "we": "@we",
                         "Nx": "@Nx"
                     }
-                }
+                },
+                "multiplier": ""
             },
             {
                 "netlist_device": "npn13G2l",
@@ -204,7 +209,8 @@
                         "we": "@we",
                         "Nx": "@Nx"
                     }
-                }
+                },
+                "multiplier": ""
             },
             {
                 "netlist_device": "npn13G2v",
@@ -217,7 +223,8 @@
                         "we": "@we",
                         "Nx": "@Nx"
                     }
-                }
+                },
+                "multiplier": ""
             },
             {
                 "netlist_device": "ntap1",
@@ -226,10 +233,12 @@
                 "layout_cell_type": "pcell",
                 "parameter_mapping": {
                     "entries": {
-                        "A": "@A",
-                        "P": "@P"
+                        "R": "@R",
+                        "w": "@w",
+                        "l": "@l"
                     }
-                }
+                },
+                "multiplier": ""
             },
             {
                 "netlist_device": "pnpMPA",
@@ -239,10 +248,10 @@
                 "parameter_mapping": {
                     "entries": {
                         "a": "@a",
-                        "p": "@p",
-                        "m": "@m"
+                        "p": "@p"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "ptap1",
@@ -251,10 +260,12 @@
                 "layout_cell_type": "pcell",
                 "parameter_mapping": {
                     "entries": {
-                        "A": "@A",
-                        "P": "@P"
+                        "R": "@R",
+                        "w": "@w",
+                        "l": "@l"
                     }
-                }
+                },
+                "multiplier": ""
             },
             {
                 "netlist_device": "rhigh",
@@ -265,10 +276,10 @@
                     "entries": {
                         "w": "@w",
                         "l": "@l",
-                        "b": "@b",
-                        "m": "@m"
+                        "b": "@b"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "rppd",
@@ -279,10 +290,10 @@
                     "entries": {
                         "w": "@w",
                         "l": "@l",
-                        "b": "@b",
-                        "m": "@m"
+                        "b": "@b"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "rsil",
@@ -292,10 +303,10 @@
                 "parameter_mapping": {
                     "entries": {
                         "w": "@w",
-                        "l": "@l",
-                        "m": "@m"
+                        "l": "@l"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "schottky_nbl1",
@@ -304,9 +315,9 @@
                 "layout_cell_type": "pcell",
                 "parameter_mapping": {
                     "entries": {
-                        "m": "@m"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "sg13_hv_nmos",
@@ -317,10 +328,10 @@
                     "entries": {
                         "w": "@w",
                         "l": "@l",
-                        "ng": "@ng",
-                        "m": "@m"
+                        "ng": "@ng"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "sg13_hv_pmos",
@@ -331,10 +342,10 @@
                     "entries": {
                         "w": "@w",
                         "l": "@l",
-                        "ng": "@ng",
-                        "m": "@m"
+                        "ng": "@ng"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "sg13_lv_nmos",
@@ -345,10 +356,10 @@
                     "entries": {
                         "w": "@w",
                         "l": "@l",
-                        "ng": "@ng",
-                        "m": "@m"
+                        "ng": "@ng"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "sg13_lv_pmos",
@@ -359,10 +370,10 @@
                     "entries": {
                         "w": "@w",
                         "l": "@l",
-                        "ng": "@ng",
-                        "m": "@m"
+                        "ng": "@ng"
                     }
-                }
+                },
+                "multiplier": "@m"
             },
             {
                 "netlist_device": "sg13_hv_svaricap",
@@ -375,7 +386,8 @@
                         "l": "@l",
                         "Nx": "@Nx"
                     }
-                }
+                },
+                "multiplier": ""
             }
         ]
     }

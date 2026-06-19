@@ -88,48 +88,15 @@ class CellImportSetting:
 
 
 @dataclass
-class NetlistImportConfig:
+class NetlistSourceConfig:
     source_path: Optional[Path] = None
     file_format: NetlistFileFormat = NetlistFileFormat.SPICE_SIMULATION_NETLIST
     hierarchy_mode: HierarchyMode = HierarchyMode.PRESERVE_HIERARCHY
-    cell_map: CellMap = field(default_factory=CellMap)
     cell_import_settings: List[CellImportSetting] = field(default_factory=list)    
-    origin_x: float = 0.0
-    origin_y: float = 0.0
-    limit_columns: bool = True
-    max_columns: int = 10   
-    pitch: float = 50.0    # µm
-    
-    @classmethod
-    def default_for_tech(cls, tech: pya.Technology) -> NetlistImportConfig:
-        script_dir = Path(__file__).resolve().parent
-        pdk_info_factory = NetlistPDKInfoFactory(search_path=[script_dir / '..' / 'pdks'])
-        netlist_pdk_info = pdk_info_factory.pdk_info(tech.name)
-        config = NetlistImportConfig()
-        if netlist_pdk_info is not None:
-            config.cell_map = netlist_pdk_info.cell_map
-        return config
-
-    def cell_import_setting_for(self, cell_name: str) -> Optional[CellImportSetting]:
-        for s in self.cell_import_settings:
-            if s.cell_name == cell_name:
-                return s
-        return None
 
     @classmethod
-    def load_json(cls, json_path: Path) -> NetlistImportConfig:
-        text = json_path.read_text(encoding='utf-8')
-        data = json.loads(text)
-        settings = NetlistImportConfig.from_dict(data)
-        return settings
-    
-    def save_json(self, json_path: Path):
-        data = self.dict()
-        json_path.write_text(json.dumps(data, indent=2), encoding='utf-8')
-    
-    @classmethod
-    def from_dict(cls, d: Dict) -> NetlistImportConfig:
-        settings = NetlistImportConfig()        
+    def from_dict(cls, d: Dict) -> NetlistSourceConfig:
+        settings = NetlistSourceConfig()        
     
         file_format_str = d.get('file_format', None)
         if file_format_str is not None:
@@ -142,27 +109,6 @@ class NetlistImportConfig:
         hierarchy_mode_str = d.get('hierarchy_mode', None)
         if hierarchy_mode_str is not None:
             settings.hierarchy_mode = HierarchyMode(hierarchy_mode_str)
-        
-        cell_map_data = d.get('cell_map', None)
-        if cell_map_data is not None:
-            if isinstance(cell_map_data, str):
-                try:
-                    import ast
-                    cell_map_data = ast.literal_eval(cell_map_data)
-                except Exception:
-                    cell_map_data = None
-            if isinstance(cell_map_data, dict):
-                entries = [
-                    CellMapEntry(
-                        netlist_device = e['netlist_device'],
-                        layout_cell_library = e['layout_cell_library'],
-                        layout_cell = e['layout_cell'],
-                        layout_cell_type = CellType(e['layout_cell_type']),
-                        parameter_mapping = ParameterMapping(entries=e.get('parameter_mapping', {}).get('entries', {}))
-                    )
-                    for e in cell_map_data.get('entries', [])
-                ]
-                settings.cell_map = CellMap(entries=entries)        
         
         cis_data = d.get('cell_import_settings', [])
         if isinstance(cis_data, list):
@@ -185,6 +131,49 @@ class NetlistImportConfig:
                     static_cell=entry.get('static_cell', ''),
                     instance_settings=inst_settings,
                 ))
+
+        return settings
+    
+    def dict(self) -> Dict:
+        d = {
+            'source_path': str(self.source_path),
+            'file_format': self.file_format.value,
+            'hierarchy_mode': self.hierarchy_mode.value,
+            'cell_import_settings': [
+                {
+                    'cell_name': cis.cell_name,
+                    'import_mode': cis.import_mode.value,
+                    'static_library': cis.static_library,
+                    'static_cell': cis.static_cell,
+                    'instance_settings': [
+                        {
+                            'instance_name': inst.instance_name,
+                            'device_name': inst.device_name,
+                            'import_mode': inst.import_mode.value,
+                            'static_library': inst.static_library,
+                            'static_cell': inst.static_cell,
+                        }
+                        for inst in cis.instance_settings
+                    ]
+                }
+                for cis in self.cell_import_settings
+            ],
+        }
+        return d
+    
+
+
+@dataclass
+class LayoutConfig:
+    origin_x: float = 0.0
+    origin_y: float = 0.0
+    limit_columns: bool = True
+    max_columns: int = 10   
+    pitch: float = 50.0    # µm
+
+    @classmethod
+    def from_dict(cls, d: Dict) -> LayoutConfig:
+        settings = LayoutConfig()        
         
         origin_x_str = d.get('origin_x', None)
         if origin_x_str is not None:
@@ -210,44 +199,98 @@ class NetlistImportConfig:
     
     def dict(self) -> Dict:
         d = {
-            'source_path': str(self.source_path),
-            'file_format': self.file_format.value,
-            'hierarchy_mode': self.hierarchy_mode.value,
-            'cell_map': {
-                'entries': [
-                    {
-                        'netlist_device': e.netlist_device,
-                        'layout_cell_library': e.layout_cell_library,
-                        'layout_cell': e.layout_cell,
-                        'layout_cell_type': e.layout_cell_type.value,
-                        'parameter_mapping': {'entries': e.parameter_mapping.entries}
-                    }
-                    for e in self.cell_map.entries
-                ]
-            },
-            'cell_import_settings': [
-                {
-                    'cell_name': cis.cell_name,
-                    'import_mode': cis.import_mode.value,
-                    'static_library': cis.static_library,
-                    'static_cell': cis.static_cell,
-                    'instance_settings': [
-                        {
-                            'instance_name': inst.instance_name,
-                            'device_name': inst.device_name,
-                            'import_mode': inst.import_mode.value,
-                            'static_library': inst.static_library,
-                            'static_cell': inst.static_cell,
-                        }
-                        for inst in cis.instance_settings
-                    ]
-                }
-                for cis in self.cell_import_settings
-            ],
             'origin_x': str(self.origin_x),
             'origin_y': str(self.origin_y),
             'limit_columns': str(int(self.limit_columns)),
             'max_columns': str(self.max_columns),
             'pitch': str(self.pitch)
+        }
+        return d
+
+
+@dataclass
+class NetlistImportConfig:
+    netlist_source_config: NetlistSourceConfig = field(default_factory=NetlistSourceConfig)
+    tech_cell_map: CellMap = field(default_factory=CellMap)
+    layout_config: LayoutConfig = field(default_factory=LayoutConfig)
+    
+    @classmethod
+    def default_for_tech(cls, tech: pya.Technology) -> NetlistImportConfig:
+        script_dir = Path(__file__).resolve().parent
+        pdk_info_factory = NetlistPDKInfoFactory(search_path=[script_dir / '..' / 'pdks'])
+        netlist_pdk_info = pdk_info_factory.pdk_info(tech.name)
+        config = NetlistImportConfig()
+        if netlist_pdk_info is not None:
+            config.tech_cell_map = netlist_pdk_info.cell_map
+        return config
+
+    def cell_import_setting_for(self, cell_name: str) -> Optional[CellImportSetting]:
+        for s in self.netlist_source_config.cell_import_settings:
+            if s.cell_name == cell_name:
+                return s
+        return None
+
+    def instance_setting(self, cell_name: str, instance_name: str) -> Optional[InstanceImportSetting]:
+        """Look up the InstanceImportSetting for a given cell+instance."""
+        cis = self.cell_import_setting_for(cell_name)
+        if cis:
+            return cis.instance_setting_for(instance_name)
+        return None        
+    
+    @classmethod
+    def load_json(cls, json_path: Path) -> NetlistImportConfig:
+        text = json_path.read_text(encoding='utf-8')
+        data = json.loads(text)
+        settings = NetlistImportConfig.from_dict(data)
+        return settings
+    
+    def save_json(self, json_path: Path):
+        data = self.dict()
+        json_path.write_text(json.dumps(data, indent=2), encoding='utf-8')
+    
+    @classmethod
+    def from_dict(cls, d: Dict) -> NetlistImportConfig:
+        settings = NetlistImportConfig()        
+    
+        data = d.get('netlist_source_config', None)
+        if data is not None:
+            if isinstance(data, str):
+                try:
+                    import ast
+                    data = ast.literal_eval(data)
+                except Exception:
+                    data = None
+            if isinstance(data, dict):
+                settings.netlist_source_config = NetlistSourceConfig.from_dict(data)
+
+        data = d.get('tech_cell_map', None)
+        if data is not None:
+            if isinstance(data, str):
+                try:
+                    import ast
+                    data = ast.literal_eval(data)
+                except Exception:
+                    data = None
+            if isinstance(data, dict):
+                settings.tech_cell_map = CellMap.from_dict(data)
+
+        data = d.get('layout_config', None)
+        if data is not None:
+            if isinstance(data, str):
+                try:
+                    import ast
+                    data = ast.literal_eval(data)
+                except Exception:
+                    data = None
+            if isinstance(data, dict):
+                settings.layout_config = LayoutConfig.from_dict(data)
+        
+        return settings
+    
+    def dict(self) -> Dict:
+        d = {
+            'netlist_source_config': self.netlist_source_config.dict(),
+            'tech_cell_map': self.tech_cell_map.dict(),
+            'layout_config': self.layout_config.dict(),
         }
         return d

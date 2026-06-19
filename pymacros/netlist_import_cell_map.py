@@ -52,19 +52,9 @@ class CellMapEntry:
     layout_cell: str
     layout_cell_type: CellType
     parameter_mapping: ParameterMapping = field(default_factory=ParameterMapping)
-
+    multiplier: str = ''
     
-@dataclass
-class CellMap:
-    entries: List[CellMapEntry] = field(default_factory=list)
-
-    def map_entry_for_device(self, netlist_device: str) -> Optional[CellMapEntry]:
-        for e in self.entries:
-            if e.netlist_device.lower() == netlist_device.lower():
-                return e
-        return None
-
-
+    
 @dataclass
 class CellMap:
     entries: List[CellMapEntry] = field(default_factory=list)
@@ -77,20 +67,7 @@ class CellMap:
 
     def save_json(self, path: Path):
         """Save cell map entries to a JSON file."""
-        data = {
-            'cell_map': {
-                'entries': [
-                    {
-                        'netlist_device': e.netlist_device,
-                        'layout_cell_library': e.layout_cell_library,
-                        'layout_cell': e.layout_cell,
-                        'layout_cell_type': e.layout_cell_type.value,
-                        'parameter_mapping': {'entries': e.parameter_mapping.entries},
-                    }
-                    for e in self.entries
-                ]
-            }
-        }
+        data = self.dict()
         with open(str(path), 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
 
@@ -100,8 +77,12 @@ class CellMap:
         with open(str(path), 'r', encoding='utf-8') as f:
             raw = json.load(f)
         cell_map_data = raw.get('cell_map', raw)
+        return cls.from_dict(cell_map_data)
+
+    @classmethod
+    def from_dict(cls, d: Dict) -> CellMap:
         entries = []
-        for item in cell_map_data.get('entries', []):
+        for item in d.get('entries', []):
             entries.append(CellMapEntry(
                 netlist_device=item.get('netlist_device', ''),
                 layout_cell_library=item.get('layout_cell_library', ''),
@@ -110,5 +91,22 @@ class CellMap:
                 parameter_mapping=ParameterMapping(
                     entries=item.get('parameter_mapping', {}).get('entries', {})
                 ),
+                multiplier=item.get('multiplier', ''),
             ))
         return cls(entries=entries)
+
+    def dict(self) -> Dict:    
+        data = {
+            'entries': [
+                {
+                    'netlist_device': e.netlist_device,
+                    'layout_cell_library': e.layout_cell_library,
+                    'layout_cell': e.layout_cell,
+                    'layout_cell_type': e.layout_cell_type.value,
+                    'parameter_mapping': {'entries': e.parameter_mapping.entries},
+                    'multiplier': e.multiplier,
+                }
+                for e in self.entries
+            ]
+        }
+        return data
