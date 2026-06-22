@@ -176,6 +176,8 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         # Pass 2: Populate each cell with its instances
         placer = GridPlacer(self.config)
         
+        errors: List[str] = []
+        
         for nc in netlist.all_cells:
             if nc.name not in cell_map:
                 continue
@@ -196,7 +198,22 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                 if inst_mode == ImportMode.IGNORE:
                     continue
                 elif inst_mode == ImportMode.TECH_CELL_MAPPING:
-                    child_cell, multiplier = self._resolve_tech_mapped_cell(inst.device_name, inst.parameters)
+                    try:
+                        result = self._resolve_tech_mapped_cell(inst.device_name, inst.parameters)
+                        if result is None:
+                            errors += [
+                                f"Unable to resolve tech cell mapping "
+                                f"for device {inst.device_name}, parameters {inst.parameters}"
+                            ]
+                            continue
+                    except Exception as e:
+                        traceback.print_exc()
+                        errors += [
+                            f"Unable to resolve tech cell mapping "
+                            f"for device {inst.device_name}, parameters {inst.parameters}, due to exception: {e}"
+                        ]
+                        continue
+                    child_cell, multiplier = result
                 elif inst_mode == ImportMode.EXTERNAL_STATIC_CELL:
                     child_cell = self._resolve_library_cell(iis.static_library, iis.static_cell)
                 elif inst_mode == ImportMode.NETLIST_CELL: # Subcircuit instance → reference the child cell
@@ -288,11 +305,11 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
     def _parse_numeric(self, value: str) -> float:
         """Convert string to float, handling SPICE suffixes."""
         suffixes = {
-            'T': 1e12, 'G': 1e9, 'MEG': 1e6, 'K': 1e3,
-            'M': 1e-3, 'U': 1e-6, 'N': 1e-9, 'P': 1e-12,
-            'F': 1e-15, 'A': 1e-18,
+            't': 1e12, 'g': 1e9, 'meg': 1e6, 'k': 1e3,
+            'm': 1e-3, 'u': 1e-6, 'n': 1e-9, 'p': 1e-12,
+            'f': 1e-15, 'a': 1e-18,
         }
-        value = value.strip().upper()
+        value = value.strip().lower()
         for suffix, multiplier in sorted(suffixes.items(), key=lambda x: -len(x[0])):
             if value.endswith(suffix):
                 try:
