@@ -24,6 +24,8 @@
 
 """Core parser implementation for netlist_parser."""
 
+from __future__ import annotations
+
 import os
 import re
 from typing import Dict, List, Optional, Set, Union
