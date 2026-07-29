@@ -57,45 +57,43 @@ import klayout_plugin_utils.debugging
 import klayout_plugin_utils.editor_options
 import klayout_plugin_utils.event_loop
 import klayout_plugin_utils.file_selector_widget
+import klayout_plugin_utils.library_helper
 import klayout_plugin_utils.object_description
 import klayout_plugin_utils.str_enum_compat
+import klayout_plugin_utils.ui_loader
 import grid_placer
 import layout_page
-import library_helper
 import netlist_import_cell_map
 import netlist_import_config
 import netlist_import_dialog
 import netlist_import_plugin
 import netlist_importer
-import netlist_parser
 import netlist_pdk_info
 import netlist_source_page
 import page_base
 import previous_netlist_import_ui_settings
 import tech_cell_mapping_page
-import ui_loader
 
 reload(klayout_plugin_utils.debugging)
 reload(klayout_plugin_utils.editor_options)
 reload(klayout_plugin_utils.event_loop)
 reload(klayout_plugin_utils.file_selector_widget)
+reload(klayout_plugin_utils.library_helper)
 reload(klayout_plugin_utils.object_description)
 reload(klayout_plugin_utils.str_enum_compat)
+import klayout_plugin_utils.ui_loader
 reload(grid_placer)
 reload(layout_page)
-reload(library_helper)
 reload(netlist_import_cell_map)
 reload(netlist_import_config)
 reload(netlist_import_dialog)
 reload(netlist_import_plugin)
 reload(netlist_importer)
-reload(netlist_parser)
 reload(netlist_pdk_info)
 reload(netlist_source_page)
 reload(page_base)
 reload(previous_netlist_import_ui_settings)
 reload(tech_cell_mapping_page)
-reload(ui_loader)
 
 import klayout_plugin_utils.debugging
 klayout_plugin_utils.debugging.Debugging.init_debugging()

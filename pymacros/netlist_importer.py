@@ -23,9 +23,9 @@ from typing import *
 import pya
 
 from klayout_plugin_utils.debugging import debug, Debugging
+from klayout_plugin_utils.netlist_parser import NetlistParser, Netlist, NetlistError, NetlistCell, DeviceInstance
 
 from netlist_import_config import *
-from netlist_parser import NetlistParser, NetlistError, NetlistCell, DeviceInstance
 from grid_placer import GridPlacer, GridPosition
 
 
@@ -43,12 +43,13 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                           cell_lib: str,
                           params: Dict[str, Any],
                           parent_cell: pya.Cell,
-                          position: pya.DVector) -> Tuple[pya.Cell, pya.DCellInstArray]:
-        print(f"NetlistImporter.add_cell_instance(cell_name={cell_name}, params={params})")
+                          position: pya.DVector) -> Tuple[pya.Cell, pya.Instance, pya.DCellInstArray]:
+        if Debugging.DEBUG:
+            debug(f"NetlistImporter.add_cell_instance(cell_name={cell_name}, params={params})")
         cell = self.layout.create_cell(cell_name, cell_lib, params)
-        inst = pya.DCellInstArray(cell, pya.DTrans(position))
-        parent_cell.insert(inst)
-        return cell, inst
+        inst_arr = pya.DCellInstArray(cell, pya.DTrans(position))
+        inst = parent_cell.insert(inst_arr)
+        return cell, inst, inst_array
     
     def _should_import_cell(self, cell: NetlistCell) -> bool:
         """Check whether a cell should be imported based on its ImportMode."""
@@ -77,7 +78,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
     def _place_instance_via_tech_mapping(self,
                                          inst: DeviceInstance,
                                          lay_cell: pya.Cell,
-                                         position: pya.DVector) -> Optional[Tuple[pya.Cell, pya.DCellInstArray]]:
+                                         position: pya.DVector) -> Optional[Tuple[pya.Cell, pya.Instance, pya.DCellInstArray]]:
         """Place an instance using the tech cell mapping (cell_map)."""
         cell_map = self.config.tech_cell_map.map_entry_for_device(inst.device_name)
         if cell_map is None:
@@ -98,7 +99,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                                             lay_cell: pya.Cell,
                                             position: pya.DVector,
                                             static_library: str,
-                                            static_cell: str) -> Optional[Tuple[pya.Cell, pya.DCellInstArray]]:
+                                            static_cell: str) -> Optional[Tuple[pya.Cell, ppya.Instance, ya.DCellInstArray]]:
         """Place an instance as an external static cell reference.
         
         Uses the device_name directly as the cell name (no library, no params).
@@ -120,8 +121,8 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                 cell = self.layout.create_cell(cell_name)
     
         cell_inst = pya.DCellInstArray(cell, pya.DTrans(position))
-        lay_cell.insert(cell_inst)
-        return cell, cell_inst
+        inst = lay_cell.insert(cell_inst)
+        return cell, inst, cell_inst
 
     def import_netlist_into_layout(self):
         cv = pya.CellView.active()
@@ -245,7 +246,10 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                         pya.DTrans(pya.DVector(pos.x, pos.y))
                     )
                     
-                    parent_cell.insert(inst_array)
+                    inst = parent_cell.insert(inst_array)
+                    
+                    
+                    
                     if Debugging.DEBUG:
                         debug(f"NetlistImporter._import_hierarchical:   → PLACED {instance_name} at ({pos.x}, {pos.y})")
                             
