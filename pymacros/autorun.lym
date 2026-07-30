@@ -61,18 +61,18 @@ import klayout_plugin_utils.library_helper
 import klayout_plugin_utils.object_description
 import klayout_plugin_utils.str_enum_compat
 import klayout_plugin_utils.ui_loader
-import grid_placer
-import layout_page
-import netlist_import_cell_map
-import netlist_import_config
-import netlist_import_dialog
-import netlist_import_plugin
-import netlist_importer
-import netlist_pdk_info
-import netlist_source_page
-import page_base
-import previous_netlist_import_ui_settings
-import tech_cell_mapping_page
+import klayout_netlist_importer.grid_placer
+import klayout_netlist_importer.layout_page
+import klayout_netlist_importer.netlist_import_cell_map
+import klayout_netlist_importer.netlist_import_config
+import klayout_netlist_importer.netlist_import_dialog
+import klayout_netlist_importer.netlist_import_plugin
+import klayout_netlist_importer.netlist_importer
+import klayout_netlist_importer.netlist_pdk_info
+import klayout_netlist_importer.netlist_source_page
+import klayout_netlist_importer.page_base
+import klayout_netlist_importer.previous_import_ui_settings
+import klayout_netlist_importer.tech_cell_mapping_page
 
 reload(klayout_plugin_utils.debugging)
 reload(klayout_plugin_utils.editor_options)
@@ -81,24 +81,24 @@ reload(klayout_plugin_utils.file_selector_widget)
 reload(klayout_plugin_utils.library_helper)
 reload(klayout_plugin_utils.object_description)
 reload(klayout_plugin_utils.str_enum_compat)
-import klayout_plugin_utils.ui_loader
-reload(grid_placer)
-reload(layout_page)
-reload(netlist_import_cell_map)
-reload(netlist_import_config)
-reload(netlist_import_dialog)
-reload(netlist_import_plugin)
-reload(netlist_importer)
-reload(netlist_pdk_info)
-reload(netlist_source_page)
-reload(page_base)
-reload(previous_netlist_import_ui_settings)
-reload(tech_cell_mapping_page)
+reload(klayout_plugin_utils.ui_loader)
+reload(klayout_netlist_importer.grid_placer)
+reload(klayout_netlist_importer.layout_page)
+reload(klayout_netlist_importer.netlist_import_cell_map)
+reload(klayout_netlist_importer.netlist_import_config)
+reload(klayout_netlist_importer.netlist_import_dialog)
+reload(klayout_netlist_importer.netlist_import_plugin)
+reload(klayout_netlist_importer.netlist_importer)
+reload(klayout_netlist_importer.netlist_pdk_info)
+reload(klayout_netlist_importer.netlist_source_page)
+reload(klayout_netlist_importer.page_base)
+reload(klayout_netlist_importer.previous_import_ui_settings)
+reload(klayout_netlist_importer.tech_cell_mapping_page)
 
 import klayout_plugin_utils.debugging
 klayout_plugin_utils.debugging.Debugging.init_debugging()
 
-from netlist_import_plugin import NetlistImportPluginFactory
+from klayout_netlist_importer.netlist_import_plugin import NetlistImportPluginFactory
 
 if 'NetlistImportPluginFactory_Singleton_Instance' in globals() and \
     NetlistImportPluginFactory_Singleton_Instance is not None:

@@ -26,10 +26,9 @@ import traceback
 from typing import *
 
 from klayout_plugin_utils.debugging import debug, Debugging
-from klayout_plugin_utils.str_enum_compat import StrEnum
 from klayout_plugin_utils.dataclass_dict_helpers import dataclass_from_dict
 
-from netlist_import_cell_map import *
+from klayout_netlist_importer.netlist_import_cell_map import *
 
 
 @dataclass

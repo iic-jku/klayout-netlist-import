@@ -37,10 +37,8 @@ from klayout_plugin_utils.qt_helpers import (
 )
 from klayout_plugin_utils.ui_loader import load_ui
 
-from netlist_import_config import *
-from netlist_importer import NetlistImporter
-from page_base import PageBase
-from previous_netlist_import_ui_settings import PreviousUISettings
+from klayout_netlist_importer.netlist_import_config import *
+from klayout_netlist_importer.page_base import PageBase
 
 #--------------------------------------------------------------------------------
 
@@ -50,6 +48,7 @@ _CELL_NAME_ROLE      = int(pya.Qt.UserRole) + 1
 _STATIC_LIBRARY_ROLE = int(pya.Qt.UserRole) + 2
 _STATIC_CELL_ROLE    = int(pya.Qt.UserRole) + 3
 
+#--------------------------------------------------------------------------------
 
 class TechCellMappingPage(PageBase):
     def __init__(self, 

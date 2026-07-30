@@ -25,7 +25,7 @@ import pya
 
 from klayout_plugin_utils.debugging import debug, Debugging
 
-from netlist_import_config import NetlistImportConfig
+from klayout_netlist_importer.netlist_import_config import NetlistImportConfig
 
 
 @dataclass

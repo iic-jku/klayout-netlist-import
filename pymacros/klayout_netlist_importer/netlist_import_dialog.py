@@ -36,12 +36,12 @@ from klayout_plugin_utils.qt_helpers import (
 )
 from klayout_plugin_utils.ui_loader import load_ui
 
-from layout_page import LayoutPage
-from netlist_import_config import *
-from netlist_importer import NetlistImporter
-from netlist_source_page import NetlistSourcePage
-from previous_netlist_import_ui_settings import PreviousUISettings
-from tech_cell_mapping_page import TechCellMappingPage
+from klayout_netlist_importer.layout_page import LayoutPage
+from klayout_netlist_importer.netlist_import_config import *
+from klayout_netlist_importer.netlist_importer import NetlistImporter
+from klayout_netlist_importer.netlist_source_page import NetlistSourcePage
+from klayout_netlist_importer.previous_import_ui_settings import PreviousUISettings
+from klayout_netlist_importer.tech_cell_mapping_page import TechCellMappingPage
 
 #--------------------------------------------------------------------------------
 

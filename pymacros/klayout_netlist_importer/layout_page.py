@@ -25,8 +25,8 @@ import pya
 from klayout_plugin_utils.debugging import debug, Debugging
 from klayout_plugin_utils.ui_loader import load_ui
 
-from netlist_import_config import LayoutConfig
-from page_base import PageBase
+from klayout_netlist_importer.netlist_import_config import LayoutConfig
+from klayout_netlist_importer.page_base import PageBase
 
 
 class LayoutPage(PageBase):

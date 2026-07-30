@@ -32,10 +32,10 @@ from typing import *
 
 import pya
 
-
-from netlist_import_cell_map import *
-from netlist_pdk_info import NetlistPDKInfo, NetlistPDKInfoFactory
 from klayout_plugin_utils.str_enum_compat import StrEnum, DualStrEnum
+
+from klayout_netlist_importer.netlist_import_cell_map import *
+from klayout_netlist_importer.netlist_pdk_info import NetlistPDKInfoFactory
 
 
 CONFIG_KEY__NETLIST_IMPORT_CONFIG = 'klayout_netlist_import_config'

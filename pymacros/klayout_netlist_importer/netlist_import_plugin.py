@@ -36,9 +36,8 @@ from klayout_plugin_utils.event_loop import EventLoop
 from klayout_plugin_utils.qt_helpers import qmessagebox_critical
 from klayout_plugin_utils.str_enum_compat import StrEnum
 
-from netlist_import_config import NetlistImportConfig
-from netlist_import_dialog import NetlistImportDialog
-from previous_netlist_import_ui_settings import PreviousUISettings
+from klayout_netlist_importer.netlist_import_dialog import NetlistImportDialog
+from klayout_netlist_importer.previous_import_ui_settings import PreviousUISettings
 
 #--------------------------------------------------------------------------------
 

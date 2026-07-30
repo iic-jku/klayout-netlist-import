@@ -25,8 +25,8 @@ import pya
 from klayout_plugin_utils.debugging import debug, Debugging
 from klayout_plugin_utils.netlist_parser import NetlistParser, Netlist, NetlistError, NetlistCell, DeviceInstance
 
-from netlist_import_config import *
-from grid_placer import GridPlacer, GridPosition
+from klayout_netlist_importer.netlist_import_config import *
+from klayout_netlist_importer.grid_placer import GridPlacer, GridPosition
 
 
 class NetlistImporter(pya.NetlistSpiceReaderDelegate):

@@ -22,11 +22,11 @@ from typing import *
 
 import pya
 
-from klayout_plugin_utils.debugging import debug, Debugging
-
 #--------------------------------------------------------------------------------
 
 path_containing_this_script = os.path.realpath(os.path.join(os.path.dirname(__file__)))
+
+#--------------------------------------------------------------------------------
 
 
 class PageBase(pya.QWidget):
