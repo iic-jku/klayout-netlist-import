@@ -17,8 +17,7 @@
 #--------------------------------------------------------------------------------
 
 from __future__ import annotations
-from collections import defaultdict
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass
 from typing import *
 
 import pya

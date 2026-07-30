@@ -25,11 +25,8 @@ import pya
 
 from klayout_plugin_utils.debugging import debug, Debugging
 from klayout_plugin_utils.event_loop import EventLoop
-from klayout_plugin_utils.file_selector_widget import FileSelectorWidget
 from klayout_plugin_utils.file_system_helpers import FileSystemHelpers
 from klayout_plugin_utils.library_helper import LibraryHelper
-from klayout_plugin_utils.lru_file_helper import LRUFileHelper
-from klayout_plugin_utils.netlist_parser import NetlistParser, Netlist, NetlistError, NetlistCell, DeviceInstance
 from klayout_plugin_utils.qt_helpers import (
     compat_QShortCut,
     compat_QTreeWidgetItem_setBackground,
