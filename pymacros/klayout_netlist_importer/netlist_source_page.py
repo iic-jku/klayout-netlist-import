@@ -451,7 +451,7 @@ class NetlistSourcePage(PageBase):
             w = self._make_static_cell_widget(item, instance=False)
         else:
             w = pya.QWidget()
-        old_item_widget = tree.itemWidget(item, 5)
+        old_item_widget = tree.itemWidget(item, 5)   # keep alive
         self._import_settings_widgets[id(item)] = w
         tree.setItemWidget(item, 5, w)
     
