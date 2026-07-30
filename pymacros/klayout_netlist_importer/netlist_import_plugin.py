@@ -39,11 +39,6 @@ from klayout_plugin_utils.str_enum_compat import StrEnum
 from klayout_netlist_importer.netlist_import_dialog import NetlistImportDialog
 from klayout_netlist_importer.previous_import_ui_settings import PreviousUISettings
 
-#--------------------------------------------------------------------------------
-
-path_containing_this_script = os.path.realpath(os.path.join(os.path.dirname(__file__)))
-
-#--------------------------------------------------------------------------------
 
 class NetlistImportPluginFactory(pya.PluginFactory):
     def __init__(self):

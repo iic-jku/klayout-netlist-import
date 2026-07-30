@@ -75,55 +75,6 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             return True
         return sis.import_mode != ImportMode.IGNORE
 
-    def _place_instance_via_tech_mapping(self,
-                                         inst: DeviceInstance,
-                                         lay_cell: pya.Cell,
-                                         position: pya.DVector) -> Optional[Tuple[pya.Cell, pya.Instance, pya.DCellInstArray]]:
-        """Place an instance using the tech cell mapping (cell_map)."""
-        cell_map = self.config.tech_cell_map.map_entry_for_device(inst.device_name)
-        if cell_map is None:
-            print(f"  Warning: no tech cell mapping for device '{inst.device_name}' "
-                  f"(instance '{inst.name}'), skipping.")
-            return None
-        return self.add_cell_instance(
-            self.layout,
-            cell_map.layout_cell,
-            cell_map.layout_cell_library,
-            inst.parameters,
-            lay_cell,
-            position,
-        )
-
-    def _place_instance_via_external_static(self,
-                                            inst: DeviceInstance,
-                                            lay_cell: pya.Cell,
-                                            position: pya.DVector,
-                                            static_library: str,
-                                            static_cell: str) -> Optional[Tuple[pya.Cell, ppya.Instance, ya.DCellInstArray]]:
-        """Place an instance as an external static cell reference.
-        
-        Uses the device_name directly as the cell name (no library, no params).
-        """
-        cell_name = static_cell or inst.device_name
-        if not cell_name:
-            print(f"  Warning: instance '{inst.name}' has no cell name, skipping.")
-            return None
-    
-        if static_library:
-            cell = self.layout.create_cell(cell_name, static_library)
-            if cell is None:
-                print(f"  Warning: could not create '{cell_name}' from library "
-                      f"'{static_library}', creating empty cell.")
-                cell = self.layout.create_cell(cell_name)
-        else:
-            cell = self.layout.cell(cell_name)
-            if cell is None:
-                cell = self.layout.create_cell(cell_name)
-    
-        cell_inst = pya.DCellInstArray(cell, pya.DTrans(position))
-        inst = lay_cell.insert(cell_inst)
-        return cell, inst, cell_inst
-
     def import_netlist_into_layout(self):
         cv = pya.CellView.active()
         top_cell_name = cv.cell.name
@@ -324,28 +275,4 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             return i if i == f else f
         except ValueError:
             return value
-    
-
-if __name__ == "__main__":
-    test_path = '/Users/martin/Source/ihp_ref_layouts/ihp-sg13g2-ams-chip-template/macros/inverter/netlist/schematic/inverter_magic.spice'
-
-    cell_map = CellMap([
-        CellMapEntry('sg13_lv_nmos', 'SG13_dev', 'nmos', CellType.PCELL, ParameterMapping('w=@w l=@l ng=@ng m=@m')),
-        CellMapEntry('sg13_lv_pmos', 'SG13_dev', 'pmos', CellType.PCELL, ParameterMapping('w=@w l=@l ng=@ng m=@m')),
-    ])
-
-    config = NetlistImportConfig(
-        source_path=test_path,
-        file_format=NetlistFileFormat.SPICE_SIMULATION_NETLIST,
-        hierarchy_mode=HierarchyMode.PRESERVE_HIERARCHY,
-        cell_map=cell_map,
-        max_columns=3,
-        spacing=1.0
-    )
-
-    layout = pya.CellView.active().layout()
-    
-    importer = NetlistImporter(config, layout)
-    importer.import_netlist_into_layout()
-    
     

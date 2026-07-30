@@ -22,12 +22,6 @@ from typing import *
 
 import pya
 
-#--------------------------------------------------------------------------------
-
-path_containing_this_script = os.path.realpath(os.path.join(os.path.dirname(__file__)))
-
-#--------------------------------------------------------------------------------
-
 
 class PageBase(pya.QWidget):
     def widget(self) -> pya.QWidget:
