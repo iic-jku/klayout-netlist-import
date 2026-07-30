@@ -155,19 +155,8 @@ class NetlistSourcePage(PageBase):
                    
     def _validate_static_cell_combo(self, lib_cb: pya.QComboBox, cell_cb: pya.QComboBox):
         """Set red background on library/cell combos if their value is invalid."""
-        lib_name = lib_cb.currentText.strip()
-        cell_name = cell_cb.currentText.strip()
+        self.validate_lib_cell_combo(lib_cb, cell_cb, library_helper=self.library_helper)
     
-        lib_valid = bool(lib_name) and lib_name in self.library_helper.get_library_names()
-        cell_valid = False
-        if lib_valid and cell_name:
-            cell_valid = cell_name in self.library_helper.get_library_cell_names(lib_name)
-    
-        red = "QComboBox { background-color: #ffcccc; }"
-        ok  = ""
-        lib_cb.setStyleSheet(red if not lib_valid else ok)
-        cell_cb.setStyleSheet(red if not cell_valid else ok)
-                    
     def _make_cell_import_setting_combo(self, current_value: str = None) -> pya.QComboBox:
         """Create a QComboBox for cell-level ImportMode."""
         choices = [
