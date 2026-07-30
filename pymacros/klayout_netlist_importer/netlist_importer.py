@@ -49,7 +49,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         cell = self.layout.create_cell(cell_name, cell_lib, params)
         inst_arr = pya.DCellInstArray(cell, pya.DTrans(position))
         inst = parent_cell.insert(inst_arr)
-        return cell, inst, inst_array
+        return cell, inst, inst_arr
     
     def _should_import_cell(self, cell: NetlistCell) -> bool:
         """Check whether a cell should be imported based on its ImportMode."""
