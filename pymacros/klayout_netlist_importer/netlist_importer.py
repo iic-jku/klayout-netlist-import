@@ -246,9 +246,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                         pya.DTrans(pya.DVector(pos.x, pos.y))
                     )
                     
-                    inst = parent_cell.insert(inst_array)
-                    
-                    
+                    layout_inst = parent_cell.insert(inst_array)
                     
                     if Debugging.DEBUG:
                         debug(f"NetlistImporter._import_hierarchical:   → PLACED {instance_name} at ({pos.x}, {pos.y})")
