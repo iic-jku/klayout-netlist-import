@@ -38,6 +38,8 @@ from klayout_plugin_utils.ui_loader import load_ui
 
 from klayout_netlist_importer.layout_page import LayoutPage
 from klayout_netlist_importer.netlist_import_config import *
+from klayout_netlist_importer.netlist_import_report import NetlistImportReport
+from klayout_netlist_importer.netlist_import_report_dialog import NetlistImportReportDialog
 from klayout_netlist_importer.netlist_importer import NetlistImporter
 from klayout_netlist_importer.netlist_source_page import NetlistSourcePage
 from klayout_netlist_importer.previous_import_ui_settings import PreviousUISettings
@@ -216,15 +218,21 @@ class NetlistImportDialog(pya.QDialog):
             
             lv.transaction("import netlist")
             try:
-                importer.import_netlist_into_layout()
+                report = importer.import_netlist_into_layout()
             finally:
                 lv.commit()
             
-            self.accept()
+            dialog = NetlistImportReportDialog(report, parent=self)
+            dialog.exec_()
+            
+            if not report.has_failures:
+                self.accept()
+            # else: keep the dialog open so the user can fix mappings/settings
+            # and re-run the import without starting over.
         except Exception as e:
             qmessagebox_critical('Error', "Import failed", f"<pre>{e}</pre>")
             traceback.print_exc()
-        
+
     def on_cancel(self):
         if Debugging.DEBUG:
             debug("NetlistImportDialog.on_cancel")
