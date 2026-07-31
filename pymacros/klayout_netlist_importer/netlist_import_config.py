@@ -209,7 +209,7 @@ class NetlistImportConfig:
     @classmethod
     def default_for_tech(cls, tech: pya.Technology) -> NetlistImportConfig:
         script_dir = Path(__file__).resolve().parent
-        pdk_info_factory = NetlistPDKInfoFactory(search_path=[script_dir.parent / 'pdks'])
+        pdk_info_factory = NetlistPDKInfoFactory(search_path=[script_dir.parent.parent / 'pdks'])
         netlist_pdk_info = pdk_info_factory.pdk_info(tech.name)
         config = NetlistImportConfig()
         if netlist_pdk_info is not None:
