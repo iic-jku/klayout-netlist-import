@@ -67,6 +67,8 @@ import klayout_netlist_importer.netlist_import_cell_map
 import klayout_netlist_importer.netlist_import_config
 import klayout_netlist_importer.netlist_import_dialog
 import klayout_netlist_importer.netlist_import_plugin
+import klayout_netlist_importer.netlist_import_report
+import klayout_netlist_importer.netlist_import_report_dialog
 import klayout_netlist_importer.netlist_importer
 import klayout_netlist_importer.netlist_pdk_info
 import klayout_netlist_importer.netlist_source_page
@@ -88,6 +90,8 @@ reload(klayout_netlist_importer.netlist_import_cell_map)
 reload(klayout_netlist_importer.netlist_import_config)
 reload(klayout_netlist_importer.netlist_import_dialog)
 reload(klayout_netlist_importer.netlist_import_plugin)
+reload(klayout_netlist_importer.netlist_import_report)
+reload(klayout_netlist_importer.netlist_import_report_dialog)
 reload(klayout_netlist_importer.netlist_importer)
 reload(klayout_netlist_importer.netlist_pdk_info)
 reload(klayout_netlist_importer.netlist_source_page)

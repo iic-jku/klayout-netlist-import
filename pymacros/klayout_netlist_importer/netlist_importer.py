@@ -28,6 +28,7 @@ from klayout_plugin_utils.debugging import debug, Debugging
 from klayout_plugin_utils.netlist_parser import NetlistParser, Netlist, NetlistError, NetlistCell, DeviceInstance
 
 from klayout_netlist_importer.netlist_import_config import *
+from klayout_netlist_importer.netlist_import_report import NetlistImportReport
 from klayout_netlist_importer.grid_placer import GridPlacer, GridPosition
 
 
@@ -77,7 +78,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             return True
         return sis.import_mode != ImportMode.IGNORE
 
-    def import_netlist_into_layout(self):
+    def import_netlist_into_layout(self) -> NetlistImportReport:
         cv = pya.CellView.active()
         top_cell_name = cv.cell.name
     
@@ -85,13 +86,17 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         netlist = parser.parse(str(self.config.netlist_source_config.source_path), 
                                implicit_top_cell_name=top_cell_name)   # might raise NetlistError
         
+        report = NetlistImportReport()
+        
         m = self.config.netlist_source_config.hierarchy_mode
         if m == HierarchyMode.PRESERVE_HIERARCHY:
-            self._import_hierarchical(netlist, cv.cell)
+            self._import_hierarchical(netlist, cv.cell, report)
         # elif m == HierarchyMode.FLATTEN:
         #    self._import_flattened(netlist)
     
-    def _import_hierarchical(self, netlist, current_top_cell):
+        return report
+    
+    def _import_hierarchical(self, netlist: Netlist, current_top_cell: pya.Cell, report: NetlistImportReport):
         """Each subckt → its own Cell; subckt instances → CellInst."""
         
         netlist_cell_names = {nc.name for nc in netlist.all_cells}
@@ -114,11 +119,20 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                 else:
                     cell = self.layout.create_cell(nc.name)
                 cell_map[nc.name] = cell
+                report.add_cell_success(nc.name)
             elif mode == ImportMode.EXTERNAL_STATIC_CELL:
                 lib_name = cis.static_library
                 cell_name = cis.static_cell
                 cell = self._resolve_library_cell(lib_name, cell_name)
+                if cell is None:
+                    report.add_cell_failure(
+                        nc.name,
+                        f"Unable to resolve external static cell '{cell_name}' "
+                        f"in library '{lib_name}'"
+                    )
+                    continue
                 cell_map[nc.name] = cell
+                report.add_cell_success(nc.name)
             elif mode == ImportMode.NETLIST_CELL:
                 # This cell is itself defined in the netlist but the user chose
                 # "Netlist Cell" — skip creating a new layout cell; it will be
@@ -129,9 +143,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         
         # Pass 2: Populate each cell with its instances
         placer = GridPlacer(self.config)
-        
-        errors: List[str] = []
-        
+
         for nc in netlist.all_cells:
             if nc.name not in cell_map:
                 continue
@@ -155,43 +167,66 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                     try:
                         result = self._resolve_tech_mapped_cell(inst.device_name, inst.parameters)
                         if result is None:
-                            errors += [
+                            report.add_instance_failure(
+                                nc.name, inst.name,
                                 f"Unable to resolve tech cell mapping "
                                 f"for device {inst.device_name}, parameters {inst.parameters}"
-                            ]
+                            )
                             continue
                     except Exception as e:
                         traceback.print_exc()
-                        errors += [
+                        report.add_instance_failure(
+                            nc.name, inst.name,
                             f"Unable to resolve tech cell mapping "
                             f"for device {inst.device_name}, parameters {inst.parameters}, due to exception: {e}"
-                        ]
+                        )
                         continue
                     child_cell, multiplier = result
                 elif inst_mode == ImportMode.EXTERNAL_STATIC_CELL:
                     child_cell = self._resolve_library_cell(iis.static_library, iis.static_cell)
+                    if child_cell is None:
+                        report.add_instance_failure(
+                            nc.name, inst.name,
+                            f"Unable to resolve external static cell "
+                            f"'{iis.static_cell}' in library '{iis.static_library}'"
+                        )
+                        continue
                 elif inst_mode == ImportMode.NETLIST_CELL: # Subcircuit instance → reference the child cell
                     child_cell = cell_map.get(inst.device_name)
                     if child_cell is None:
                         if Debugging.DEBUG:
                             debug(f"NetlistImporter._import_hierarchical:   → NETLIST_CELL: '{inst.device_name}' not in cell_map, skipping")
+                        report.add_instance_failure(
+                            nc.name, inst.name,
+                            f"Subcircuit cell '{inst.device_name}' was not created "
+                            f"(likely IGNOREd or failed itself), instance skipped"
+                        )
                         continue
                 elif inst_mode == ImportMode.NEW_CELL:
                     # Shouldn't normally appear at instance level, treat like netlist cell
                     child_cell = cell_map.get(inst.device_name)
+                    if child_cell is None:
+                        report.add_instance_failure(
+                            nc.name, inst.name,
+                            f"Cell '{inst.device_name}' was not created, instance skipped"
+                        )
+                        continue
                 else:
                     raise NotImplementedError(f"Unexpected ImportMode enum case {inst_mode}")
-                
+
                 if child_cell is None:
                     if Debugging.DEBUG:
                         debug(f"[NetlistImporter._import_hierarchical:   → SKIPPED (no cell resolved)")
+                    report.add_instance_failure(
+                        nc.name, inst.name, "No cell could be resolved for this instance"
+                    )
                     continue
-                
+
                 for i in range(multiplier):
                     instance_name = inst.name
                     if multiplier > 1:
                          instance_name += f"${i+1}"
-                
+
                     try:
                         # Place at next grid position
                         pos = placer.next_position()
@@ -199,22 +234,25 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                             child_cell.cell_index(),
                             pya.DTrans(pya.DVector(pos.x, pos.y))
                         )
-                        
+
                         layout_inst = parent_cell.insert(inst_array)
                     except Exception as e:
                         traceback.print_exc()
-                        errors += [
+                        report.add_instance_failure(
+                            nc.name, instance_name,
                             f"Failed to instantiate {inst.name} {instance_name} for device {inst.device_name}, due to exception: {e}"
-                        ]
-                        instantiation_failed = True  # ensure outer loop will continue
-                        break  # NOTE: this will only break out of the multiplier loop, 
+                        )
+                        break  # NOTE: this will only break out of the multiplier loop,
                                # which is the last code in the block,
                                # so ensure no code is added below!
-                    
+
                     if Debugging.DEBUG:
                         debug(f"NetlistImporter._import_hierarchical:   → PLACED {instance_name} at ({pos.x}, {pos.y})")
-                            
-    def _resolve_tech_mapped_cell(self, device_name: str, parameters: Dict) -> Tuple[pya.Cell, int]:
+
+                    report.add_instance_success(nc.name, instance_name)
+                
+                
+    def _resolve_tech_mapped_cell(self, device_name: str, parameters: Dict) -> Optional[Tuple[pya.Cell, int]]:
         """Look up device in cell_map and create/find the layout cell."""
         entry = self.config.tech_cell_map.map_entry_for_device(device_name)
         if entry is None:
@@ -239,7 +277,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             
         return cell, multiplier
     
-    def _resolve_library_cell(self, lib_name: str, cell_name: str) -> str:
+    def _resolve_library_cell(self, lib_name: str, cell_name: str) -> Optional[pya.Cell]:
         """Resolve a static cell from a library."""
         if not lib_name or not cell_name:
             return None
