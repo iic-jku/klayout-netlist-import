@@ -22,10 +22,13 @@ import pya
 
 from klayout_plugin_utils.debugging import debug, Debugging
 
-from netlist_import_config import NetlistImportConfig
+from klayout_netlist_importer.netlist_import_config import NetlistImportConfig
 
+#--------------------------------------------------------------------------------
 
 CONFIG_KEY__netlist_import_config = 'netlist_import_config'
+
+#--------------------------------------------------------------------------------
 
 
 class PreviousUISettings:

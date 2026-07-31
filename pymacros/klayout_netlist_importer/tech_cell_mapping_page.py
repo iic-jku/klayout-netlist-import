@@ -25,22 +25,17 @@ import pya
 
 from klayout_plugin_utils.debugging import debug, Debugging
 from klayout_plugin_utils.event_loop import EventLoop
-from klayout_plugin_utils.file_selector_widget import FileSelectorWidget
 from klayout_plugin_utils.file_system_helpers import FileSystemHelpers
-from klayout_plugin_utils.lru_file_helper import LRUFileHelper
+from klayout_plugin_utils.library_helper import LibraryHelper
 from klayout_plugin_utils.qt_helpers import (
     compat_QShortCut,
     compat_QTreeWidgetItem_setBackground,
     qmessagebox_critical
 )
+from klayout_plugin_utils.ui_loader import load_ui
 
-from library_helper import LibraryHelper
-from netlist_import_config import *
-from netlist_importer import NetlistImporter
-from netlist_parser import NetlistParser, Netlist, NetlistError, NetlistCell, DeviceInstance
-from page_base import PageBase
-from previous_netlist_import_ui_settings import PreviousUISettings
-from ui_loader import load_ui
+from klayout_netlist_importer.netlist_import_config import *
+from klayout_netlist_importer.page_base import PageBase
 
 #--------------------------------------------------------------------------------
 
@@ -50,6 +45,7 @@ _CELL_NAME_ROLE      = int(pya.Qt.UserRole) + 1
 _STATIC_LIBRARY_ROLE = int(pya.Qt.UserRole) + 2
 _STATIC_CELL_ROLE    = int(pya.Qt.UserRole) + 3
 
+#--------------------------------------------------------------------------------
 
 class TechCellMappingPage(PageBase):
     def __init__(self, 
@@ -520,19 +516,7 @@ class TechCellMappingPage(PageBase):
         cell_cb = self._cell_map_cell_combos.get(row)
         if lib_cb is None or cell_cb is None:
             return
-    
-        lib_name = lib_cb.currentText.strip()
-        lib_valid = bool(lib_name) and lib_name in self.library_helper.get_library_names()
-    
-        cell_name = cell_cb.itemData(cell_cb.currentIndex) if cell_cb.currentIndex >= 0 and cell_cb.itemData(cell_cb.currentIndex) else cell_cb.currentText.strip()
-        cell_valid = False
-        if lib_valid and cell_name:
-            cell_valid = cell_name in self.library_helper.get_library_cell_names(lib_name)
-    
-        red = "QComboBox { background-color: #ffcccc; }"
-        ok  = ""
-        lib_cb.setStyleSheet(red if not lib_valid else ok)
-        cell_cb.setStyleSheet(red if not cell_valid else ok)    
+        self.validate_lib_cell_combo(lib_cb, cell_cb, library_helper=self.library_helper, prefer_item_data=True)
     
     def _set_cell_type_widget(self, row: int, value: str):
         """Place a QComboBox in column 1 of the given row."""

@@ -26,21 +26,17 @@ import pya
 from klayout_plugin_utils.debugging import debug, Debugging
 from klayout_plugin_utils.event_loop import EventLoop
 from klayout_plugin_utils.file_selector_widget import FileSelectorWidget
-from klayout_plugin_utils.file_system_helpers import FileSystemHelpers
-from klayout_plugin_utils.lru_file_helper import LRUFileHelper
+from klayout_plugin_utils.library_helper import LibraryHelper
+from klayout_plugin_utils.netlist_parser import NetlistParser, NetlistError, NetlistCell, DeviceInstance
 from klayout_plugin_utils.qt_helpers import (
     compat_QShortCut,
     compat_QTreeWidgetItem_setBackground,
     qmessagebox_critical
 )
+from klayout_plugin_utils.ui_loader import load_ui
 
-from library_helper import LibraryHelper
-from netlist_import_config import *
-from netlist_importer import NetlistImporter
-from netlist_parser import NetlistParser, Netlist, NetlistError, NetlistCell, DeviceInstance
-from page_base import PageBase
-from previous_netlist_import_ui_settings import PreviousUISettings
-from ui_loader import load_ui
+from klayout_netlist_importer.netlist_import_config import *
+from klayout_netlist_importer.page_base import PageBase
 
 #--------------------------------------------------------------------------------
 
@@ -159,19 +155,8 @@ class NetlistSourcePage(PageBase):
                    
     def _validate_static_cell_combo(self, lib_cb: pya.QComboBox, cell_cb: pya.QComboBox):
         """Set red background on library/cell combos if their value is invalid."""
-        lib_name = lib_cb.currentText.strip()
-        cell_name = cell_cb.currentText.strip()
+        self.validate_lib_cell_combo(lib_cb, cell_cb, library_helper=self.library_helper)
     
-        lib_valid = bool(lib_name) and lib_name in self.library_helper.get_library_names()
-        cell_valid = False
-        if lib_valid and cell_name:
-            cell_valid = cell_name in self.library_helper.get_library_cell_names(lib_name)
-    
-        red = "QComboBox { background-color: #ffcccc; }"
-        ok  = ""
-        lib_cb.setStyleSheet(red if not lib_valid else ok)
-        cell_cb.setStyleSheet(red if not cell_valid else ok)
-                    
     def _make_cell_import_setting_combo(self, current_value: str = None) -> pya.QComboBox:
         """Create a QComboBox for cell-level ImportMode."""
         choices = [
@@ -455,7 +440,7 @@ class NetlistSourcePage(PageBase):
             w = self._make_static_cell_widget(item, instance=False)
         else:
             w = pya.QWidget()
-        old_item_widget = tree.itemWidget(item, 5)
+        old_item_widget = tree.itemWidget(item, 5)   # keep alive
         self._import_settings_widgets[id(item)] = w
         tree.setItemWidget(item, 5, w)
     

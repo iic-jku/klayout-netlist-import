@@ -26,22 +26,22 @@ from klayout_plugin_utils.debugging import debug, Debugging
 from klayout_plugin_utils.event_loop import EventLoop
 from klayout_plugin_utils.file_selector_widget import FileSelectorWidget
 from klayout_plugin_utils.file_system_helpers import FileSystemHelpers
+from klayout_plugin_utils.library_helper import LibraryHelper
 from klayout_plugin_utils.lru_file_helper import LRUFileHelper
+from klayout_plugin_utils.netlist_parser import NetlistParser, Netlist, NetlistError, NetlistCell, DeviceInstance
 from klayout_plugin_utils.qt_helpers import (
     compat_QShortCut,
     compat_QTreeWidgetItem_setBackground,
     qmessagebox_critical
 )
+from klayout_plugin_utils.ui_loader import load_ui
 
-from layout_page import LayoutPage
-from library_helper import LibraryHelper
-from netlist_import_config import *
-from netlist_importer import NetlistImporter
-from netlist_parser import NetlistParser, Netlist, NetlistError, NetlistCell, DeviceInstance
-from netlist_source_page import NetlistSourcePage
-from previous_netlist_import_ui_settings import PreviousUISettings
-from tech_cell_mapping_page import TechCellMappingPage
-from ui_loader import load_ui
+from klayout_netlist_importer.layout_page import LayoutPage
+from klayout_netlist_importer.netlist_import_config import *
+from klayout_netlist_importer.netlist_importer import NetlistImporter
+from klayout_netlist_importer.netlist_source_page import NetlistSourcePage
+from klayout_netlist_importer.previous_import_ui_settings import PreviousUISettings
+from klayout_netlist_importer.tech_cell_mapping_page import TechCellMappingPage
 
 #--------------------------------------------------------------------------------
 

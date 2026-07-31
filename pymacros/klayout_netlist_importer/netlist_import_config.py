@@ -17,25 +17,17 @@
 #--------------------------------------------------------------------------------
 
 from __future__ import annotations
-from collections import defaultdict
-from dataclasses import dataclass, asdict, field
-from datetime import datetime
-from functools import cached_property
+from dataclasses import dataclass, field
 import json
-import os 
 from pathlib import Path
-import re
-import sys
-import threading
-import traceback
 from typing import *
 
 import pya
 
-
-from netlist_import_cell_map import *
-from netlist_pdk_info import NetlistPDKInfo, NetlistPDKInfoFactory
 from klayout_plugin_utils.str_enum_compat import StrEnum, DualStrEnum
+
+from klayout_netlist_importer.netlist_import_cell_map import *
+from klayout_netlist_importer.netlist_pdk_info import NetlistPDKInfoFactory
 
 
 CONFIG_KEY__NETLIST_IMPORT_CONFIG = 'klayout_netlist_import_config'
@@ -217,7 +209,7 @@ class NetlistImportConfig:
     @classmethod
     def default_for_tech(cls, tech: pya.Technology) -> NetlistImportConfig:
         script_dir = Path(__file__).resolve().parent
-        pdk_info_factory = NetlistPDKInfoFactory(search_path=[script_dir / '..' / 'pdks'])
+        pdk_info_factory = NetlistPDKInfoFactory(search_path=[script_dir.parent / 'pdks'])
         netlist_pdk_info = pdk_info_factory.pdk_info(tech.name)
         config = NetlistImportConfig()
         if netlist_pdk_info is not None:

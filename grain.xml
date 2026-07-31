@@ -3,7 +3,7 @@
     <name>NetlistImportPlugin</name>
     <token/>
     <hidden>false</hidden>
-    <version>0.6</version>
+    <version>0.7</version>
     <api-version/>
     <title>Netlist Import</title>
     <doc>Import netlists into Layout</doc>
@@ -15,7 +15,7 @@
     <depends>
         <name>KLayoutPluginUtils</name>
         <url/>
-        <version>0.24</version>
+        <version>0.26</version>
     </depends>
     <authored-time/>
     <installed-time></installed-time>
