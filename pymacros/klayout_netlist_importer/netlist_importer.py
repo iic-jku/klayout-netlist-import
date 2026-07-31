@@ -17,6 +17,7 @@
 #--------------------------------------------------------------------------------
 
 from __future__ import annotations
+import json
 from pathlib import Path
 import re
 import traceback
@@ -30,6 +31,23 @@ from klayout_plugin_utils.netlist_parser import NetlistParser, Netlist, NetlistE
 from klayout_netlist_importer.netlist_import_config import *
 from klayout_netlist_importer.netlist_import_report import NetlistImportReport
 from klayout_netlist_importer.grid_placer import GridPlacer, GridPosition
+
+from klayout_plugin_utils.layout_connectivity_info import (
+    PROPERTY_KEY__INSTANCE_INFO__VERSION,
+    PROPERTY_KEY__INSTANCE_INFO__LIB_NAME,
+    PROPERTY_KEY__INSTANCE_INFO__CELL_NAME,
+    PROPERTY_KEY__INSTANCE_INFO__INSTANCE_NAME,
+    PROPERTY_KEY__INSTANCE_INFO__HIERARCHY_PATH,
+    PROPERTY_KEY__INSTANCE_INFO__ORIGINAL_INSTANCE_PARAMS,
+    PROPERTY_KEY__INSTANCE_INFO__LOCAL_NET_MAP,
+    PROPERTY_KEY__INSTANCE_INFO__GLOBAL_NET_MAP,
+)
+
+#--------------------------------------------------------------------------------
+
+INSTANCE_INFO_VERSION = '1'
+
+#--------------------------------------------------------------------------------
 
 
 class NetlistImporter(pya.NetlistSpiceReaderDelegate):
@@ -152,6 +170,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             
             for inst in nc.instances:
                 child_cell = None
+                tech_map_entry: Optional[CellMapEntry] = None
                 
                 iis = self.config.instance_setting(nc.name, inst.name)
                 inst_mode = iis.import_mode if iis else (
@@ -181,7 +200,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                             f"for device {inst.device_name}, parameters {inst.parameters}, due to exception: {e}"
                         )
                         continue
-                    child_cell, multiplier = result
+                    child_cell, multiplier, tech_map_entry = result
                 elif inst_mode == ImportMode.EXTERNAL_STATIC_CELL:
                     child_cell = self._resolve_library_cell(iis.static_library, iis.static_cell)
                     if child_cell is None:
@@ -249,139 +268,59 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                     if Debugging.DEBUG:
                         debug(f"NetlistImporter._import_hierarchical:   → PLACED {instance_name} at ({pos.x}, {pos.y})")
 
+                    if tech_map_entry is not None and tech_map_entry.layout_cell_type == CellType.PCELL:
+                        self._set_pcell_instance_info(
+                            layout_inst=layout_inst,
+                            entry=tech_map_entry,
+                            inst=inst,
+                            instance_name=instance_name,
+                            hierarchy_path=f"{nc.name}.{instance_name}",  # TODO: true top-down path, see follow-up
+                        )
+                    
                     report.add_instance_success(nc.name, instance_name)
                 
-                
-    def _resolve_tech_mapped_cell(self, device_name: str, parameters: Dict) -> Optional[Tuple[pya.Cell, int]]:
+    def _resolve_tech_mapped_cell(self, device_name: str, parameters: Dict) -> Optional[Tuple[pya.Cell, int, CellMapEntry]]:
         """Look up device in cell_map and create/find the layout cell."""
         entry = self.config.tech_cell_map.map_entry_for_device(device_name)
         if entry is None:
             return None
         
-        lib = pya.Library.library_by_name(entry.layout_cell_library, self.layout.technology().name)
-        if lib is None:
-            return None
-        
-        multiplier = 1
-        
-        if entry.layout_cell_type == CellType.PCELL:
-            pcell_decl = lib.layout().pcell_declaration(entry.layout_cell)
-            if pcell_decl is None:
-                raise NetlistError(f"PCell '{entry.layout_cell}' not found in library '{entry.layout_cell_library}'")
-        
-            # Resolve parameter mapping: netlist params → PCell params
-            pcell_params, multiplier = self._map_parameters(entry, parameters, pcell_decl)
-            cell = self.layout.create_cell(entry.layout_cell, entry.layout_cell_library, pcell_params)
-        else:
-            cell = self.layout.create_cell(entry.layout_cell, entry.layout_cell_library)
+        cell, multiplier = entry.resolve_layout_cell(self.layout, parameters)
+        return cell, multiplier, entry
             
-        return cell, multiplier
-    
     def _resolve_library_cell(self, lib_name: str, cell_name: str) -> Optional[pya.Cell]:
         """Resolve a static cell from a library."""
         if not lib_name or not cell_name:
             return None
         return self.layout.create_cell(cell_name, lib_name)
     
-    def _map_parameters(self, 
-                        entry: CellMapEntry, 
-                        netlist_params: Dict,
-                        pcell_decl: pya.PCellDeclaration) -> Tuple[Dict, int]:
-        """Apply parameter_mapping to translate netlist params → PCell params.
-        
-        Mapping format: pcell_param=@netlist_param  or  pcell_param=literal
-        The PCell declaration is consulted so each value is coerced to the
-        type the PCell actually expects (double/int/string/bool/…), instead
-        of guessing a single numeric conversion for everything.
-        """
-        param_decls_by_name = {p.name: p for p in pcell_decl.get_parameters()}
+    def _set_pcell_instance_info(self,
+                                 layout_inst: pya.Instance,
+                                 entry: CellMapEntry,
+                                 inst: DeviceInstance,
+                                 instance_name: str,
+                                 hierarchy_path: str):
+        """Stamp INSTANCE_INFO__* properties onto a freshly-placed PCell instance."""
+        local_net_map = entry.build_local_net_map(inst)
 
-        result = {}
-        for pcell_key, expr in entry.parameter_mapping.entries.items():
-            if expr.startswith('@'):
-                netlist_key = expr[1:]
-                raw_value = netlist_params.get(netlist_key, None)
-            else:
-                raw_value = expr
-                
-            if raw_value is None or raw_value == '':
-                # TODO: log error
-                continue
-            
-            param_decl = param_decls_by_name.get(pcell_key, None)
-            if param_decl is None:
-                if Debugging.DEBUG:
-                    debug(f"NetlistImporter._map_parameters: "
-                          f"unknown PCell parameter '{pcell_key}' on '{entry.layout_cell}', "
-                          f"falling back to numeric parse")
-                result[pcell_key] = self._parse_numeric(raw_value)
-                continue
-            
-            result[pcell_key] = self._convert_value_for_param(raw_value, param_decl)
-               
-            
-        multiplier = 1 
-        if entry.multiplier:
-            mult_key = entry.multiplier
-            if mult_key.startswith('@'):
-                mult_key = mult_key[1:]
-            mult_param = netlist_params.get(mult_key, None)
-            if mult_param is not None and mult_param != '':
-                multiplier = int(self._parse_numeric(mult_param))
-        
-        return result, multiplier
+        layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__VERSION, INSTANCE_INFO_VERSION)
+        layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__LIB_NAME, entry.layout_cell_library)
+        layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__CELL_NAME, entry.layout_cell)
+        layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__INSTANCE_NAME, instance_name)
+        layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__HIERARCHY_PATH, hierarchy_path)
+        layout_inst.set_property(
+            PROPERTY_KEY__INSTANCE_INFO__ORIGINAL_INSTANCE_PARAMS,
+            json.dumps(inst.parameters)
+        )
+        layout_inst.set_property(
+            PROPERTY_KEY__INSTANCE_INFO__LOCAL_NET_MAP,
+            json.dumps(local_net_map)
+        )
+        # GLOBAL_NET_MAP requires resolving nested subckt call sites; using
+        # the local map as a placeholder until top-down hierarchy resolution
+        # is implemented in a follow-up.
+        layout_inst.set_property(
+            PROPERTY_KEY__INSTANCE_INFO__GLOBAL_NET_MAP,
+            json.dumps(local_net_map)
+        )
     
-    def _convert_value_for_param(self,
-                                  value: str,
-                                  param_decl: pya.PCellParameterDeclaration) -> Any:
-        """Coerce a raw netlist parameter string into the type declared by the PCell."""
-        t = param_decl.type
-        try:
-            if t == pya.PCellParameterDeclaration.TypeDouble:
-                return float(self._parse_numeric(value))
-            elif t == pya.PCellParameterDeclaration.TypeInt:
-                return int(self._parse_numeric(value))
-            elif t == pya.PCellParameterDeclaration.TypeBoolean:
-                if isinstance(value, bool):
-                    return value
-                return str(value).strip().lower() in ('1', 'true', 't', 'yes')
-            elif t == pya.PCellParameterDeclaration.TypeString:
-                return str(value)
-            elif t == pya.PCellParameterDeclaration.TypeLayer:
-                # Expect a layer/purpose-like string; leave to PCell layer resolution
-                return str(value)
-            else:
-                # TypeList, TypeShape, TypeHandle, … — pass through unmodified
-                return value
-        except (ValueError, TypeError):
-            if Debugging.DEBUG:
-                debug(f"NetlistImporter._convert_value_for_param: "
-                      f"failed to convert '{value}' to type {t} for param "
-                      f"'{param_decl.name}', passing through raw value")
-            return value
-    
-    # Matches optional sign, digits (with optional decimal point), optional exponent.
-    # e.g. "3", "3.5", "-3.5e-2", ".5"
-    _NUMBER_RE = re.compile(r'^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$')
-    
-    def _parse_numeric(self, value: str) -> float:
-        """Convert string to float, handling SPICE suffixes."""
-        suffixes = {
-            't': 1e12, 'g': 1e9, 'meg': 1e6, 'k': 1e3,
-            'm': 1e-3, 'u': 1e-6, 'n': 1e-9, 'p': 1e-12,
-            'f': 1e-15, 'a': 1e-18,
-        }
-        value = value.strip().lower()
-        for suffix, multiplier in sorted(suffixes.items(), key=lambda x: -len(x[0])):
-            if value.endswith(suffix):
-                numeric_part = value[:-len(suffix)]
-                if self._NUMBER_RE.match(numeric_part):
-                    return float(numeric_part) * multiplier
-                # suffix matched but remainder isn't numeric — keep trying shorter suffixes
-
-        if self._NUMBER_RE.match(value):
-            f = float(value)
-            i = int(f)
-            return i if i == f else f
-
-        return value
