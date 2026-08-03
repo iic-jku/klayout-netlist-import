@@ -72,7 +72,7 @@
            <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
           </property>
           <property name="columnCount">
-           <number>6</number>
+           <number>7</number>
           </property>
           <column>
            <property name="text">
@@ -102,6 +102,11 @@
           <column>
            <property name="text">
             <string>Multiplier</string>
+           </property>
+          </column>
+          <column>
+           <property name="text">
+            <string>Netlist Node Order</string>
            </property>
           </column>
          </widget>
@@ -154,6 +159,16 @@
            </size>
           </property>
          </spacer>
+        </item>
+        <item>
+         <widget class="QPushButton" name="restore_tech_defaults_pb">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Discard the current table and reload the technology's default cell mapping&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="text">
+           <string>Restore Tech Defaults</string>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="QPushButton" name="load_map_pb">

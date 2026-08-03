@@ -92,6 +92,7 @@ class TechCellMappingPage(PageBase):
                 None,   # Cell handled separately
                 self._format_parameter_mapping(e.parameter_mapping),
                 e.multiplier,
+                self._format_netlist_node_order(e.netlist_node_order),
             ]
             for col, value in enumerate(cells):
                 if col == 1:  # cell type combo box
@@ -135,6 +136,7 @@ class TechCellMappingPage(PageBase):
         
         p.load_map_pb.clicked.connect(self.on_load_cell_map)
         p.save_map_pb.clicked.connect(self.on_save_cell_map)
+        p.restore_tech_defaults_pb.clicked.connect(self.on_reset_to_technology_default)
         
         tree = p.cell_map_tw
         header = tree.horizontalHeader
@@ -145,7 +147,14 @@ class TechCellMappingPage(PageBase):
         tree.setColumnWidth(2, 200)
         header.setSectionResizeMode(3, pya.QHeaderView.Fixed)
         tree.setColumnWidth(3, 200)
+        header.setSectionResizeMode(5, pya.QHeaderView.Fixed)
+        tree.setColumnWidth(5, 70)
         header.setStretchLastSection(True)
+        
+        tree.horizontalHeaderItem(6).setToolTip(
+            "Space-separated pin/terminal names, positionally aligned with the "
+            "SPICE node order for this device, e.g. 'D G S B'"
+        )
         
         tree.setSelectionBehavior(pya.QAbstractItemView.SelectRows)
         tree.setSelectionMode(pya.QAbstractItemView.ExtendedSelection)
@@ -194,6 +203,12 @@ class TechCellMappingPage(PageBase):
     def _format_parameter_mapping(self, pm: ParameterMapping) -> str:
         return ' '.join(f'{k}={v}' for k, v in pm.entries.items())
         
+    def _parse_netlist_node_order(self, text: str) -> List[str]:
+        return text.strip().split()
+    
+    def _format_netlist_node_order(self, order: List[str]) -> str:
+        return ' '.join(order)
+        
     def cell_map_from_ui(self, table_widget: pya.QTableWidget):
         entries = []
         for row in range(table_widget.rowCount):
@@ -220,6 +235,7 @@ class TechCellMappingPage(PageBase):
                 layout_cell         = cell_name,
                 parameter_mapping   = self._parse_parameter_mapping(cell_text(4)),
                 multiplier          = cell_text(5),
+                netlist_node_order  = self._parse_netlist_node_order(cell_text(6)),
             ))
         return CellMap(entries=entries)        
     
@@ -242,8 +258,10 @@ class TechCellMappingPage(PageBase):
             self._set_cell_map_cell_widget(row, 'nmos', 'SG13_dev')
             # Col 4 - parameters
             table.setItem(row, 4, self._make_placeholder_item('w=@w l=@l ng=@ng'))
-            # Col 4 - multiplier
+            # Col 5 - multiplier
             table.setItem(row, 5, self._make_placeholder_item('@m'))
+            # Col 6 - netlist node order
+            table.setItem(row, 6, self._make_placeholder_item('d g s b'))
             table.blockSignals(False)
             table.selectRow(row)
     
@@ -330,6 +348,31 @@ class TechCellMappingPage(PageBase):
             qmessagebox_critical('Error', "Failed to load cell mapping", f"<pre>{e}</pre>")
             traceback.print_exc()
     
+    def on_reset_to_technology_default(self):
+        """Reload the tech's default cell mapping from the PDK JSON, discarding
+        any unsaved edits in the table (e.g. after the JSON file was changed on disk)."""
+        if Debugging.DEBUG:
+            debug("TechCellMappingPage.on_reset_to_technology_default")
+    
+        answer = pya.QMessageBox.question(
+            self,
+            'Reset to Technology Default',
+            f"This will discard the current cell mapping table and reload the "
+            f"default mapping for technology '{self.tech.name}'.\n\n"
+            f"Continue?",
+            pya.QMessageBox.Yes | pya.QMessageBox.No,
+            pya.QMessageBox.No
+        )
+        if answer != pya.QMessageBox.Yes:
+            return
+    
+        try:
+            default_config = NetlistImportConfig.default_for_tech(self.tech)
+            self._apply_cell_map_to_ui(default_config.tech_cell_map)
+        except Exception as e:
+            qmessagebox_critical('Error', "Failed to reset cell mapping", f"<pre>{e}</pre>")
+            traceback.print_exc()
+    
     @staticmethod
     def _suggest_cell_map_filename() -> str:
         """Return a suggested cell-map filename like ``TECH_cell_mapping.json``."""
@@ -373,6 +416,10 @@ class TechCellMappingPage(PageBase):
             ))
             # Col 5 - Multiplier
             table.setItem(row, 5, self._make_data_item(e.multiplier))
+            # Col 6 - Netlist Node Order   
+            table.setItem(row, 6, self._make_data_item(
+                self._format_netlist_node_order(e.netlist_node_order)
+            ))
     
         table.blockSignals(False)
         self._notify_cell_map_changed()
