@@ -50,8 +50,10 @@ class PreviousUISettings:
         return settings
     
     @staticmethod
-    def save(settings: NetlistImportConfig):
+    def save(settings: NetlistImportConfig, tech: pya.Technology):
         mw = pya.MainWindow.instance()
+        
+        settings.pdk_cell_map_checksum = NetlistImportConfig.current_pdk_checksum_for_tech(tech)
         
         settings_str = pya.AbstractMenu.pack_key_binding(settings.dict())
         mw.set_config(CONFIG_KEY__netlist_import_config, settings_str)

@@ -209,7 +209,7 @@ class NetlistImportDialog(pya.QDialog):
         
         try:
             config = self.config_from_ui()
-            PreviousUISettings.save(config)
+            PreviousUISettings.save(config, self.tech)
             
             layout = pya.CellView.active().layout()
             lv = pya.LayoutView.current()

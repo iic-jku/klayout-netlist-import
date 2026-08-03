@@ -205,17 +205,29 @@ class NetlistImportConfig:
     netlist_source_config: NetlistSourceConfig = field(default_factory=NetlistSourceConfig)
     tech_cell_map: CellMap = field(default_factory=CellMap)
     layout_config: LayoutConfig = field(default_factory=LayoutConfig)
+    pdk_cell_map_checksum: Optional[str] = None   # PDK JSON checksum as of last save
+    
+    @staticmethod
+    def _pdk_info_factory() -> NetlistPDKInfoFactory:
+        script_dir = Path(__file__).resolve().parent
+        return NetlistPDKInfoFactory(search_path=[script_dir.parent.parent / 'pdks'])
     
     @classmethod
     def default_for_tech(cls, tech: pya.Technology) -> NetlistImportConfig:
-        script_dir = Path(__file__).resolve().parent
-        pdk_info_factory = NetlistPDKInfoFactory(search_path=[script_dir.parent.parent / 'pdks'])
+        pdk_info_factory = cls._pdk_info_factory()
         netlist_pdk_info = pdk_info_factory.pdk_info(tech.name)
         config = NetlistImportConfig()
         if netlist_pdk_info is not None:
             config.tech_cell_map = netlist_pdk_info.cell_map
+        config.pdk_cell_map_checksum = pdk_info_factory.checksum_for_tech(tech.name)
         return config
 
+    @classmethod
+    def current_pdk_checksum_for_tech(cls, tech: pya.Technology) -> Optional[str]:
+        """Checksum of the PDK cell-mapping JSON currently installed for *tech*,
+        independent of what's stored in any previously-saved config."""
+        return cls._pdk_info_factory().checksum_for_tech(tech.name)
+    
     def cell_import_setting_for(self, cell_name: str) -> Optional[CellImportSetting]:
         for s in self.netlist_source_config.cell_import_settings:
             if s.cell_name == cell_name:
@@ -277,6 +289,10 @@ class NetlistImportConfig:
             if isinstance(data, dict):
                 settings.layout_config = LayoutConfig.from_dict(data)
         
+        checksum = d.get('pdk_cell_map_checksum', None)
+        if checksum:
+            settings.pdk_cell_map_checksum = checksum
+            
         return settings
     
     def dict(self) -> Dict:
@@ -284,5 +300,6 @@ class NetlistImportConfig:
             'netlist_source_config': self.netlist_source_config.dict(),
             'tech_cell_map': self.tech_cell_map.dict(),
             'layout_config': self.layout_config.dict(),
+            'pdk_cell_map_checksum': self.pdk_cell_map_checksum or '',
         }
         return d

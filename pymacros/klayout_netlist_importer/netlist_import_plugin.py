@@ -28,6 +28,7 @@ from klayout_plugin_utils.event_loop import EventLoop
 from klayout_plugin_utils.qt_helpers import qmessagebox_critical
 from klayout_plugin_utils.str_enum_compat import StrEnum
 
+from klayout_netlist_importer.netlist_import_config import NetlistImportConfig
 from klayout_netlist_importer.netlist_import_dialog import NetlistImportDialog
 from klayout_netlist_importer.previous_import_ui_settings import PreviousUISettings
 
@@ -86,6 +87,11 @@ class NetlistImportPluginFactory(pya.PluginFactory):
         
         config = PreviousUISettings.load(tech)
         
+        if self._pdk_cell_map_outdated(config, tech):
+            if self._prompt_restore_default_cell_map(tech):
+                config.tech_cell_map = NetlistImportConfig.default_for_tech(tech).tech_cell_map
+                config.pdk_cell_map_checksum = NetlistImportConfig.current_pdk_checksum_for_tech(tech)
+        
         mw = pya.MainWindow.instance()
         try:
             self.dialog = NetlistImportDialog(config=config, parent=mw)
@@ -94,4 +100,26 @@ class NetlistImportPluginFactory(pya.PluginFactory):
             print(f"ERROR: Failed to open netlist import dialog due to exception: {e}")
             traceback.print_exc()
             return
-        
+    
+    @staticmethod
+    def _pdk_cell_map_outdated(config: NetlistImportConfig, tech: pya.Technology) -> bool:   # NEW
+        """True if the installed PDK cell-mapping JSON differs from the checksum
+        stored at last save. Configs with no stored checksum (pre-dating this
+        feature) are treated as outdated."""
+        if not config.pdk_cell_map_checksum:
+            return True
+        current = NetlistImportConfig.current_pdk_checksum_for_tech(tech)
+        return current is not None and current != config.pdk_cell_map_checksum
+    
+    @staticmethod
+    def _prompt_restore_default_cell_map(tech: pya.Technology) -> bool:                      # NEW
+        answer = pya.QMessageBox.question(
+            pya.MainWindow.instance(),
+            'PDK Cell Mapping Changed',
+            f"The cell mapping shipped with technology '{tech.name}' has changed "
+            f"since your last saved import settings.\n\n"
+            f"Restore the technology's default cell mapping before importing?",
+            pya.QMessageBox.Yes | pya.QMessageBox.No,
+            pya.QMessageBox.No
+        )
+        return answer == pya.QMessageBox.Yes

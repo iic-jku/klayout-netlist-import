@@ -19,6 +19,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, asdict
 import json
+import hashlib
 import os
 from pathlib import Path
 import traceback
@@ -48,19 +49,35 @@ class NetlistPDKInfo:
 class NetlistPDKInfoFactory:
     def __init__(self, search_path: List[Path]):
         self._pdk_infos_by_tech_name: Dict[str, NetlistPDKInfo] = {}
+        self._pdk_info_paths_by_tech_name: Dict[str, Path] = {}
         
         json_files = sorted({f for p in search_path for f in p.glob('*.json')})
         for f in json_files:
             try:
                 pdk_info = NetlistPDKInfo.read_json(f)
                 self._pdk_infos_by_tech_name[pdk_info.tech_name] = pdk_info
+                self._pdk_info_paths_by_tech_name[pdk_info.tech_name] = f 
             except Exception as e:
                 traceback.print_exc()
                 print(f"Failed to parse PDK info file {f}, skipping this file…", e)
                 
     def pdk_info(self, tech_name: str) -> Optional[NetlistPDKInfo]:
         return self._pdk_infos_by_tech_name.get(tech_name, None)
-            
+    
+    def pdk_info_path(self, tech_name: str) -> Optional[Path]:
+        return self._pdk_info_paths_by_tech_name.get(tech_name, None)
+
+    def checksum_for_tech(self, tech_name: str) -> Optional[str]:
+        """SHA-256 of the raw PDK info JSON file for *tech_name*,
+        or None if no file is registered for that technology."""
+        path = self.pdk_info_path(tech_name)
+        if path is None:
+            return None
+        try:
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError:
+            return None
+    
     @property
     def pdk_infos_by_tech_name(self) -> Dict[str, NetlistPDKInfo]:
         return self._pdk_infos_by_tech_name
