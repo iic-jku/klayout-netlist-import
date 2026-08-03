@@ -161,6 +161,16 @@
          </spacer>
         </item>
         <item>
+         <widget class="QPushButton" name="restore_tech_defaults_pb">
+          <property name="toolTip">
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Discard the current table and reload the technology's default cell mapping&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          </property>
+          <property name="text">
+           <string>Restore Tech Defaults</string>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QPushButton" name="load_map_pb">
           <property name="text">
            <string>Load…</string>

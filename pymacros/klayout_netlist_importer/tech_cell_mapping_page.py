@@ -136,6 +136,7 @@ class TechCellMappingPage(PageBase):
         
         p.load_map_pb.clicked.connect(self.on_load_cell_map)
         p.save_map_pb.clicked.connect(self.on_save_cell_map)
+        p.reset_to_default_pb.clicked.connect(self.on_reset_to_technology_default)
         
         tree = p.cell_map_tw
         header = tree.horizontalHeader
@@ -345,6 +346,31 @@ class TechCellMappingPage(PageBase):
             FileSystemHelpers.set_least_recent_directory(file_path.parent)
         except Exception as e:
             qmessagebox_critical('Error', "Failed to load cell mapping", f"<pre>{e}</pre>")
+            traceback.print_exc()
+    
+    def on_reset_to_technology_default(self):
+        """Reload the tech's default cell mapping from the PDK JSON, discarding
+        any unsaved edits in the table (e.g. after the JSON file was changed on disk)."""
+        if Debugging.DEBUG:
+            debug("TechCellMappingPage.on_reset_to_technology_default")
+    
+        answer = pya.QMessageBox.question(
+            self,
+            'Reset to Technology Default',
+            f"This will discard the current cell mapping table and reload the "
+            f"default mapping for technology '{self.tech.name}'.\n\n"
+            f"Continue?",
+            pya.QMessageBox.Yes | pya.QMessageBox.No,
+            pya.QMessageBox.No
+        )
+        if answer != pya.QMessageBox.Yes:
+            return
+    
+        try:
+            default_config = NetlistImportConfig.default_for_tech(self.tech)
+            self._apply_cell_map_to_ui(default_config.tech_cell_map)
+        except Exception as e:
+            qmessagebox_critical('Error', "Failed to reset cell mapping", f"<pre>{e}</pre>")
             traceback.print_exc()
     
     @staticmethod
