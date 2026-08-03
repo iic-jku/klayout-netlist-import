@@ -136,7 +136,7 @@ class TechCellMappingPage(PageBase):
         
         p.load_map_pb.clicked.connect(self.on_load_cell_map)
         p.save_map_pb.clicked.connect(self.on_save_cell_map)
-        p.reset_to_default_pb.clicked.connect(self.on_reset_to_technology_default)
+        p.restore_tech_defaults_pb.clicked.connect(self.on_reset_to_technology_default)
         
         tree = p.cell_map_tw
         header = tree.horizontalHeader
@@ -417,7 +417,7 @@ class TechCellMappingPage(PageBase):
             # Col 5 - Multiplier
             table.setItem(row, 5, self._make_data_item(e.multiplier))
             # Col 6 - Netlist Node Order   
-            self.setItem(row, 6, self._make_data_item(
+            table.setItem(row, 6, self._make_data_item(
                 self._format_netlist_node_order(e.netlist_node_order)
             ))
     
