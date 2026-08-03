@@ -159,6 +159,8 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             else:
                 raise NotImplementedError(f"Unexpected ImportMode enum case {mode}")
         
+        netlist_cells_by_name = {nc.name: nc for nc in netlist.all_cells}   # for pin-order lookup on internal cells
+        
         # Pass 2: Populate each cell with its instances
         placer = GridPlacer(self.config)
 
@@ -269,12 +271,25 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                         debug(f"NetlistImporter._import_hierarchical:   → PLACED {instance_name} at ({pos.x}, {pos.y})")
 
                     if tech_map_entry is not None and tech_map_entry.layout_cell_type == CellType.PCELL:
-                        self._set_pcell_instance_info(
+                        self._set_instance_info(
                             layout_inst=layout_inst,
-                            entry=tech_map_entry,
+                            lib_name=tech_map_entry.layout_cell_library,
+                            cell_name=tech_map_entry.layout_cell,
+                            local_net_map=tech_map_entry.build_local_net_map(inst),
                             inst=inst,
                             instance_name=instance_name,
-                            hierarchy_path=f"{nc.name}.{instance_name}",  # TODO: true top-down path, see follow-up
+                            hierarchy_path=f"{nc.name}.{instance_name}",
+                        )
+                    elif inst_mode == ImportMode.NETLIST_CELL:
+                        child_nc = netlist_cells_by_name.get(inst.device_name)
+                        self._set_instance_info(
+                            layout_inst=layout_inst,
+                            lib_name='',   # internal cell — not library-backed
+                            cell_name=inst.device_name,
+                            local_net_map=self._build_subcircuit_local_net_map(child_nc, inst),
+                            inst=inst,
+                            instance_name=instance_name,
+                            hierarchy_path=f"{nc.name}.{instance_name}",
                         )
                     
                     report.add_instance_success(nc.name, instance_name)
@@ -294,18 +309,21 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             return None
         return self.layout.create_cell(cell_name, lib_name)
     
-    def _set_pcell_instance_info(self,
-                                 layout_inst: pya.Instance,
-                                 entry: CellMapEntry,
-                                 inst: DeviceInstance,
-                                 instance_name: str,
-                                 hierarchy_path: str):
-        """Stamp INSTANCE_INFO__* properties onto a freshly-placed PCell instance."""
-        local_net_map = entry.build_local_net_map(inst)
+    def _set_instance_info(self,
+                           layout_inst: pya.Instance,
+                           lib_name: str,
+                           cell_name: str,
+                           local_net_map: Dict[str, str],
+                           inst: DeviceInstance,
+                           instance_name: str,
+                           hierarchy_path: str):
+        """Stamp INSTANCE_INFO__* properties onto a freshly-placed instance —
+        used for both tech-mapped PCells and internal (NETLIST_CELL) subcircuit
+        instances."""
 
         layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__VERSION, INSTANCE_INFO_VERSION)
-        layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__LIB_NAME, entry.layout_cell_library)
-        layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__CELL_NAME, entry.layout_cell)
+        layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__LIB_NAME, lib_name)
+        layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__CELL_NAME, cell_name)
         layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__INSTANCE_NAME, instance_name)
         layout_inst.set_property(PROPERTY_KEY__INSTANCE_INFO__HIERARCHY_PATH, hierarchy_path)
         layout_inst.set_property(
@@ -323,4 +341,25 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
             PROPERTY_KEY__INSTANCE_INFO__GLOBAL_NET_MAP,
             json.dumps(local_net_map)
         )
+        
+    def _build_subcircuit_local_net_map(self, 
+                                        child_nc: Optional[NetlistCell], 
+                                        inst: DeviceInstance) -> Dict[str, str]:
+        """Pin→net mapping for a NETLIST_CELL (subcircuit) instance, built from
+        the subckt's own port order — the internal-cell counterpart to
+        CellMapEntry.build_local_net_map() for tech-mapped PCells."""
+        ports = child_nc.ports if child_nc is not None else None
+        if not ports:
+            if Debugging.DEBUG:
+                debug(f"NetlistImporter._build_subcircuit_local_net_map: "
+                      f"no port order available for subcircuit '{inst.device_name}', "
+                      f"cannot build LOCAL_NET_MAP for instance '{inst.name}'")
+            return {}
     
+        if len(ports) != len(inst.nodes) and Debugging.DEBUG:
+            debug(f"NetlistImporter._build_subcircuit_local_net_map: "
+                  f"port count ({len(ports)}) != node count ({len(inst.nodes)}) "
+                  f"for instance '{inst.name}' of subcircuit '{inst.device_name}'; "
+                  f"mapping truncated to the shorter list")
+    
+        return dict(zip(ports, inst.nodes))    
