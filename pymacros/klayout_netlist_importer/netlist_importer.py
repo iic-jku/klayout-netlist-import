@@ -291,6 +291,16 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
                             instance_name=instance_name,
                             hierarchy_path=f"{nc.name}.{instance_name}",
                         )
+                    elif inst_mode == ImportMode.EXTERNAL_STATIC_CELL:
+                        self._set_instance_info(
+                            layout_inst=layout_inst,
+                            lib_name=iis.static_library,
+                            cell_name=iis.static_cell,
+                            local_net_map={},   # no configured pin/port order for ad-hoc static overrides
+                            inst=inst,
+                            instance_name=instance_name,
+                            hierarchy_path=f"{nc.name}.{instance_name}",
+                        )
                     
                     report.add_instance_success(nc.name, instance_name)
                 
