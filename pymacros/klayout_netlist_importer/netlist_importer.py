@@ -250,7 +250,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
 
                     try:
                         # Place at next grid position
-                        pos = placer.next_position()
+                        pos = placer.next_position(child_cell)
                         inst_array = pya.DCellInstArray(
                             child_cell.cell_index(),
                             pya.DTrans(pya.DVector(pos.x, pos.y))
@@ -312,7 +312,7 @@ class NetlistImporter(pya.NetlistSpiceReaderDelegate):
         
         cell, multiplier = entry.resolve_layout_cell(self.layout, parameters)
         return cell, multiplier, entry
-            
+    
     def _resolve_library_cell(self, lib_name: str, cell_name: str) -> Optional[pya.Cell]:
         """Resolve a static cell from a library."""
         if not lib_name or not cell_name:
