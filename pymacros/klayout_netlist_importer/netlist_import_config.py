@@ -161,7 +161,9 @@ class LayoutConfig:
     origin_y: float = 0.0
     limit_columns: bool = True
     max_columns: int = 10   
-    pitch: float = 50.0    # µm
+    pitch: float = 50.0    # µm – Fixed Grid Mode
+    padding: float = 50.0  # µm – Packed Mode Gap between cell edges
+    avoid_overlaps: bool = True
 
     @classmethod
     def from_dict(cls, d: Dict) -> LayoutConfig:
@@ -187,6 +189,14 @@ class LayoutConfig:
         if pitch_str is not None:
             settings.pitch = float(pitch_str)
 
+        avoid_overlaps_str = d.get('avoid_overlaps', None)
+        if avoid_overlaps_str is not None:
+            settings.avoid_overlaps = bool(int(avoid_overlaps_str))
+
+        padding_str = d.get('padding', None)
+        if padding_str is not None:
+            settings.padding = float(padding_str)
+        
         return settings
     
     def dict(self) -> Dict:
@@ -195,7 +205,9 @@ class LayoutConfig:
             'origin_y': str(self.origin_y),
             'limit_columns': str(int(self.limit_columns)),
             'max_columns': str(self.max_columns),
-            'pitch': str(self.pitch)
+            'pitch': str(self.pitch),
+            'padding': str(self.padding),
+            'avoid_overlaps': str(int(self.avoid_overlaps)),
         }
         return d
 

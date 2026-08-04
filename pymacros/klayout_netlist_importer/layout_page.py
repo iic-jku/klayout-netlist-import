@@ -37,6 +37,9 @@ class LayoutPage(PageBase):
 
     def _setup(self):
         self._widget = load_ui('NetlistImportConfig_LayoutPage.ui', self)
+        self._widget.fixed_placement_mode_rb.toggled.connect(self._on_placement_mode_toggled)
+        self._widget.packed_placement_mode_rb.toggled.connect(self._on_placement_mode_toggled)
+        self._on_placement_mode_toggled()
         
     def widget(self) -> pya.QWidget:
         return self._widget
@@ -47,7 +50,9 @@ class LayoutPage(PageBase):
             origin_y=self._widget.origin_y_sb.value,
             limit_columns=self._widget.limit_columns_cb.checked,
             max_columns=self._widget.max_columns_sb.value,
-            pitch=self._widget.pitch_sb.value
+            pitch=self._widget.pitch_sb.value,
+            padding=self._widget.padding_sb.value,
+            avoid_overlaps=self._widget.packed_placement_mode_rb.checked,
         )
     
     def update_ui_from_config(self, config: LayoutConfig):
@@ -56,5 +61,13 @@ class LayoutPage(PageBase):
         
         self._widget.limit_columns_cb.setChecked(config.limit_columns)
         self._widget.max_columns_sb.setValue(config.max_columns)
-        self._widget.pitch_sb.setValue(config.pitch)        
+        self._widget.pitch_sb.setValue(config.pitch)
+        self._widget.padding_sb.setValue(config.padding)
+
+        self._widget.packed_placement_mode_rb.setChecked(config.avoid_overlaps)
+        self._widget.fixed_placement_mode_rb.setChecked(not config.avoid_overlaps)    
     
+    def _on_placement_mode_toggled(self, checked: bool = False):
+        fixed = self._widget.fixed_placement_mode_rb.checked
+        self._widget.pitch_sb.setEnabled(fixed)
+        self._widget.padding_sb.setEnabled(not fixed)
